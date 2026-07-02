@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screen/home_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'services/firestore_service.dart';
 
 class ProfileSetup extends StatefulWidget {
   const ProfileSetup({super.key});
@@ -11,6 +13,13 @@ class ProfileSetup extends StatefulWidget {
 class _ProfileSetupState extends State<ProfileSetup> {
 
   // Text Controllers
+
+  final FirestoreService firestoreService =
+    FirestoreService();
+
+final FirebaseAuth auth =
+    FirebaseAuth.instance;
+    
   final TextEditingController usernameController =
       TextEditingController();
 
@@ -23,7 +32,7 @@ class _ProfileSetupState extends State<ProfileSetup> {
   final TextEditingController linkedinController =
       TextEditingController();
 
-
+  
   // Dropdown Values
 
   String? selectedField;
@@ -384,7 +393,7 @@ const SizedBox(height: 25),
 
 GestureDetector(
 
-  onTap: () {
+  onTap:() async {
 
     // Username Validation
     if (usernameController.text.isEmpty) {
@@ -398,6 +407,22 @@ GestureDetector(
       return;
     }
 
+    if (selectedField == null ||
+    selectedLevel == null ||
+    selectedGender == null ||
+    selectedDate == null) {
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        "Please complete all required fields",
+      ),
+    ),
+  );
+
+  return;
+}
+
 
     // No spaces validation
     if (usernameController.text.contains(" ")) {
@@ -410,27 +435,49 @@ GestureDetector(
 
       return;
     }
-
-
     // Success for now
-    Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (context) => const HomePage(),
-  ),
-);
+      try {
+  final user = auth.currentUser;
+
+  if (user == null) return;
+
+  await firestoreService.saveUser(
+    uid: user.uid,
+    email: user.email ?? "",
+    username: usernameController.text.trim(),
+    field: selectedField!,
+    level: selectedLevel!,
+    gender: selectedGender!,
+    birthDate: selectedDate!,
+    bio: bioController.text.trim(),
+    facebook: facebookController.text.trim(),
+    linkedin: linkedinController.text.trim(),
+  );
+
+  if (!mounted) return;
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const HomePage(),
+    ),
+  );
+} catch (e) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        "Failed to save profile: $e",
+      ),
+    ),
+  );
+}
   },
-
-
   child: Container(
 
     width: double.infinity,
     height: 55,
-
     decoration: BoxDecoration(
-
       borderRadius: BorderRadius.circular(25),
-
       gradient: const LinearGradient(
         colors: [
           Color(0xFF008000),
@@ -469,7 +516,7 @@ const SizedBox(height: 15),
 
 GestureDetector(
 
-  onTap: () {
+  onTap:() {
 
     Navigator.pop(context);
 

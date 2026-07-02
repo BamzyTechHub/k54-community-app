@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'touch_id_verified.dart';
+import '../services/biometric_service.dart';
+import '../screen/home_page.dart';
 
 class TouchId extends StatelessWidget {
   const TouchId({super.key});
@@ -52,23 +53,33 @@ class TouchId extends StatelessWidget {
               const SizedBox(height: 120),
 
               // Fingerprint
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TouchIdVerified(),
-                    ),
-                  );
-                },
+                GestureDetector(
+  onTap: () async {
 
-                child: Image.asset(
-                  "assets/images/fingerprint_gray.png",
-                  width: 220,
-                  height: 220,
-                  fit: BoxFit.contain,
-                ),
-              ),
+    final biometric = BiometricService();
+
+    final success = await biometric.authenticate();
+
+    if (success && context.mounted) {
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(),
+        ),
+      );
+
+    }
+
+  },
+
+  child: Image.asset(
+    "assets/images/fingerprint_gray.png",
+    width: 220,
+    height: 220,
+    fit: BoxFit.contain,
+  ),
+),
 
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'face_id_verified.dart';
+import '../services/biometric_service.dart';
+import '../screen/home_page.dart';
 
 class FaceId extends StatelessWidget {
   const FaceId({super.key});
@@ -52,23 +53,33 @@ class FaceId extends StatelessWidget {
               const SizedBox(height: 90),
 
               // Face ID Image
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FaceIdVerified(),
-                    ),
-                  );
-                },
+                GestureDetector(
+  onTap: () async {
 
-                child: Image.asset(
-                  "assets/images/face_id_gray.png",
-                  width: 220,
-                  height: 220,
-                  fit: BoxFit.contain,
-                ),
-              ),
+    final biometric = BiometricService();
+
+    final success = await biometric.authenticate();
+
+    if (success && context.mounted) {
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(),
+        ),
+      );
+
+    }
+
+  },
+
+  child: Image.asset(
+    "assets/images/face_id_gray.png", 
+    width: 220,
+    height: 220,
+    fit: BoxFit.contain,
+  ),
+),
 
             ],
           ),
@@ -77,3 +88,5 @@ class FaceId extends StatelessWidget {
     );
   }
 }
+
+

@@ -16,56 +16,43 @@ class K54BottomNavigation extends StatelessWidget {
   });
 
 
-  void _navigate(BuildContext context, int index) {
+   void _navigate(BuildContext context, int index) {
 
-    // Don't reload the current page
-    if (index == currentIndex) return;
+  if (index == currentIndex) return;
 
+  Widget page;
 
-    Widget page;
+  switch (index) {
+    case 0:
+      page = const HomePage();
+      break;
 
+    case 1:
+      page = const AiPage();
+      break;
 
-    switch (index) {
+    case 2:
+      page = const MembersPage();
+      break;
 
-      case 0:
-        page = const HomePage();
-        break;
+    case 3:
+      page = const GroupsPage();
+      break;
 
+    case 4:
+      page = const CoursesPage();
+      break;
 
-      case 1:
-        page = const AiPage();
-        break;
-
-
-      case 2:
-        page = const MembersPage();
-        break;
-
-
-      case 3:
-        page = const GroupsPage();
-        break;
-
-
-      case 4:
-        page = const CoursesPage();
-        break;
-
-
-      default:
-        page = const HomePage();
-
-    }
-
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => page,
-      ),
-    );
-
+    default:
+      page = const HomePage();
   }
+
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (_) => page,
+    ),
+  );
+}
 
 
   @override
@@ -82,11 +69,13 @@ class K54BottomNavigation extends StatelessWidget {
       unselectedItemColor: Colors.grey,
 
 
-      onTap: (index) {
+       onTap: (index) async {
+  await Future.delayed(Duration.zero);
 
-        _navigate(context, index);
-
-      },
+  if (context.mounted) {
+    _navigate(context, index);
+  }
+},
 
 
       items: const [

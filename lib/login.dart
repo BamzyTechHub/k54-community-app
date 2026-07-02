@@ -5,7 +5,7 @@ import 'signup.dart';
 import 'face_id.dart';
 import '../screen/home_page.dart';
 import '../services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -13,7 +13,6 @@ class Login extends StatefulWidget {
   @override
   State<Login> createState() => _LoginState();
 }
-
 class _LoginState extends State<Login> {
 
   final TextEditingController emailController =
@@ -26,6 +25,29 @@ class _LoginState extends State<Login> {
     AuthService();
   bool rememberMe = false;
   bool hidePassword = true;
+
+  @override
+void initState() {
+  super.initState();
+
+  loadRememberMe();
+}
+
+Future<void> loadRememberMe() async {
+
+  final prefs = await SharedPreferences.getInstance();
+
+  rememberMe = prefs.getBool("rememberMe") ?? false;
+
+  if (rememberMe) {
+
+    emailController.text =
+        prefs.getString("email") ?? "";
+
+  }
+
+  setState(() {});
+}
 
   @override
   Widget build(BuildContext context) {
@@ -195,68 +217,56 @@ const SizedBox(height: 10),
                 // Login Button
                 GestureDetector(
   onTap: () async {
-
     if (emailController.text.isEmpty ||
         passwordController.text.isEmpty) {
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "Please enter email and password",
-          ),
+          content: Text("Please enter your email and password"),
         ),
       );
-
       return;
     }
 
     try {
-
-      await authService.login(
-        email: emailController.text.trim(),
+      final success = await authService.login(
+        username: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      User? user = FirebaseAuth.instance.currentUser;
+      if (success) {
+        final response = await authService.getCurrentUser();
+        debugPrint(response.data.toString());
 
-await user?.reload();
+        final prefs = await SharedPreferences.getInstance();
 
-user = FirebaseAuth.instance.currentUser;
+        if (rememberMe) {
+          await prefs.setBool("rememberMe", true);
+          await prefs.setString(
+            "email",
+            emailController.text.trim(),
+          );
+        } else {
+          await prefs.remove("rememberMe");
+          await prefs.remove("email");
+        }
 
-if (!user!.emailVerified) {
+        if (!mounted) return;
 
-  await FirebaseAuth.instance.signOut();
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        "Please verify your email before logging in.",
-      ),
-    ),
-  );
-
-  return;
-}
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-      );
-
-    } on FirebaseAuthException catch (e) {
-
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HomePage(),
+          ),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.message ?? "Login failed",
-          ),
+          content: Text(e.toString()),
         ),
       );
     }
   },
-
   child: _gradientButton("Login"),
 ),
 
@@ -339,34 +349,15 @@ Row(
 
                 // Google Button
                  GestureDetector(
-  onTap: () async {
-
-    try {
-
-      final result =
-          await authService.signInWithGoogle();
-
-      if (result != null && context.mounted) {
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomePage(),
-          ),
-        );
-      }
-
-    } catch (e) {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-        ),
-      );
-    }
-  },
+  onTap: () {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        "Google login will be connected later.",
+      ),
+    ),
+  );
+},
 
   child: _socialButton(
     "assets/images/google.png",

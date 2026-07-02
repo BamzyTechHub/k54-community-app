@@ -75,7 +75,7 @@ Positioned(
 
                       radius: 55,
 
-                      backgroundImage: AssetImage(user.image),
+                      backgroundImage: AssetImage(user.profileImage),
 
                     ),
 
@@ -83,7 +83,7 @@ Positioned(
 
                     Text(
 
-                      user.name,
+                      user.username,
 
                       style: const TextStyle(
 

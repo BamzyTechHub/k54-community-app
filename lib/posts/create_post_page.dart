@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../services/buddyboss_service.dart';
+import '../services/auth_service.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({super.key});
@@ -9,14 +13,72 @@ class CreatePostPage extends StatefulWidget {
 
 class _CreatePostPageState extends State<CreatePostPage> {
 
+
   final TextEditingController postController =
-      TextEditingController();
+    TextEditingController();
+
+final ImagePicker picker = ImagePicker();
+final BuddyBossService buddyBossService = BuddyBossService();
+
+File? selectedImage;
+
+bool isLoading = false;
+
+bool schedulePost = false;
+
+bool uploadHighQuality = true;
+
+bool turnOffComments = false;
 
   @override
   void dispose() {
     postController.dispose();
     super.dispose();
   }
+Future<void> pickImage() async {
+  final image = await picker.pickImage(
+    source: ImageSource.gallery,
+  );
+
+  if (image != null) {
+    setState(() {
+      selectedImage = File(image.path);
+    });
+  }
+}
+
+ Future<void> publishPost() async {
+  if (postController.text.trim().isEmpty && selectedImage == null) {
+    return;
+  }
+
+  setState(() {
+    isLoading = true;
+  });
+
+  try {
+    await buddyBossService.createPost(
+      content: postController.text.trim(),
+      privacy: "public",
+    );
+
+    if (!mounted) return;
+
+    Navigator.pop(context, true);
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.toString()),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+}
 
   @override
 Widget build(BuildContext context) {
@@ -25,9 +87,9 @@ Widget build(BuildContext context) {
 
     backgroundColor: Colors.white,
 
-    body: SafeArea(
-
-      child: Padding(
+    body:  SafeArea(
+  child: SingleChildScrollView(
+    child: Padding(
 
         padding: const EdgeInsets.symmetric(
           horizontal: 20,
@@ -66,15 +128,29 @@ Widget build(BuildContext context) {
 
 
                 // User image
-                const CircleAvatar(
+                FutureBuilder(
+  future: AuthService().getCurrentUser(),
+  builder: (context, snapshot) {
+    String avatar = "";
 
-                  radius: 18,
+    if (snapshot.hasData) {
+      final user = (snapshot.data as dynamic).data;
 
-                  backgroundImage: AssetImage(
-                    "assets/images/member1.png",
-                  ),
+      avatar =
+          user["avatar_urls"]?["thumb"] ??
+          user["avatar_urls"]?["full"] ??
+          "";
+    }
 
-                ),
+    return CircleAvatar(
+      radius: 18,
+      backgroundImage: avatar.isNotEmpty
+          ? NetworkImage(avatar)
+          : const AssetImage("assets/images/member1.png")
+              as ImageProvider,
+    );
+  },
+),
 
 
                 const SizedBox(width: 10),
@@ -158,6 +234,19 @@ Widget build(BuildContext context) {
               ),
 
             ),
+            if (selectedImage != null)
+  Padding(
+    padding: const EdgeInsets.only(top: 15),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: Image.file(
+        selectedImage!,
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      ),
+    ),
+  ),
 const SizedBox(height: 15),
 
 // ======================
@@ -212,8 +301,6 @@ Row(
 
     ),
 
-    const Spacer(),
-
 
     // Video
     IconButton(
@@ -234,11 +321,7 @@ Row(
     // Image
     IconButton(
 
-      onPressed: () {
-
-        // Pick image later
-
-      },
+      onPressed: pickImage,
 
       icon: const Icon(
         Icons.camera_alt_outlined,
@@ -291,14 +374,13 @@ SwitchListTile(
 
   contentPadding: EdgeInsets.zero,
 
-  value: false,
+  value: schedulePost,
 
-  onChanged: (value) {
-
-    // Schedule post later
-
-  },
-
+onChanged: (value) {
+  setState(() {
+    schedulePost = value;
+  });
+},
   title: const Text(
     "Schedule this post",
   ),
@@ -314,13 +396,13 @@ SwitchListTile(
 
   contentPadding: EdgeInsets.zero,
 
-  value: false,
+value: uploadHighQuality,
 
-  onChanged: (value) {
-
-    // Upload quality later
-
-  },
+onChanged: (value) {
+  setState(() {
+    uploadHighQuality = value;
+  });
+},
 
   title: const Text(
     "Upload at highest quality",
@@ -337,14 +419,13 @@ SwitchListTile(
 
   contentPadding: EdgeInsets.zero,
 
-  value: false,
+ value: turnOffComments,
 
-  onChanged: (value) {
-
-    // Turn comments off later
-
-  },
-
+onChanged: (value) {
+  setState(() {
+    turnOffComments = value;
+  });
+},
   title: const Text(
     "Turn off commenting",
   ),
@@ -356,9 +437,6 @@ SwitchListTile(
 ),
 
 
-const Spacer(),
-
-
 // ======================
 // Bottom Buttons
 // ======================
@@ -367,56 +445,43 @@ Row(
 
   children: [
 
-    // Save Draft Button
     Expanded(
-
-      child: Container(
-
-        height: 55,
-
-        decoration: BoxDecoration(
-
-          border: Border.all(
-            color: const Color(0xFF008000),
-            width: 2,
-          ),
-
-          borderRadius: BorderRadius.circular(30),
-
+  child: GestureDetector(
+    onTap: () {
+      // Save Draft later
+    },
+    child: Container(
+      height: 55,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: const Color(0xFF008000),
+          width: 2,
         ),
-
-        child: const Center(
-
-          child: Text(
-
-            "Save Draft",
-
-            style: TextStyle(
-
-              color: Color(0xFF008000),
-
-              fontSize: 16,
-
-              fontWeight: FontWeight.bold,
-
-            ),
-
-          ),
-
-        ),
-
+        borderRadius: BorderRadius.circular(30),
       ),
-
+      child: const Center(
+        child: Text(
+          "Save Draft",
+          style: TextStyle(
+            color: Color(0xFF008000),
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     ),
+  ),
+),
 
 
     const SizedBox(width: 20),
 
 
     // Publish Button
-    Expanded(
-
-      child: Container(
+     Expanded(
+  child: GestureDetector(
+    onTap: isLoading ? null : publishPost,
+    child: Container(
 
         height: 55,
 
@@ -440,30 +505,30 @@ Row(
 
         ),
 
-        child: const Center(
-
-          child: Text(
-
-            "Publish",
-
-            style: TextStyle(
-
-              color: Colors.white,
-
-              fontSize: 16,
-
-              fontWeight: FontWeight.bold,
-
-            ),
-
+         child: Center(
+  child: isLoading
+      ? const SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
           ),
-
+        )
+      : const Text(
+          "Publish",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+),
 
       ),
 
     ),
-
+),
   ],
 
 ),
@@ -477,7 +542,7 @@ const SizedBox(height: 15),
       ),
 
     ),
-
+    ),
   );
 
 }

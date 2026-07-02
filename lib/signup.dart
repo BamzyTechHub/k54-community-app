@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_service.dart';
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -12,7 +10,6 @@ class SignUp extends StatefulWidget {
 
 class _SignUpState extends State<SignUp> {
 final AuthService authService = AuthService();
-  final FirestoreService firestoreService = FirestoreService();
   // Controllers
   final TextEditingController nameController =
       TextEditingController();
@@ -238,41 +235,44 @@ GestureDetector(
         }
 
         try {
+  final fullName = nameController.text.trim();
+  final parts = fullName.split(" ");
 
-             final credential =
-    await authService.register(
-  email: emailController.text.trim(),
-  password: passwordController.text.trim(),
-);
+  final firstName = parts.first;
+  final lastName =
+      parts.length > 1 ? parts.sublist(1).join(" ") : "";
 
-await firestoreService.saveUser(
-  uid: credential.user!.uid,
-  name: nameController.text.trim(),
-  email: emailController.text.trim(),
-);
+  final username = emailController.text
+      .trim()
+      .split("@")
+      .first;
 
-await authService.sendVerificationEmail();
+  await authService.register(
+    email: emailController.text.trim(),
+    password: passwordController.text.trim(),
+    firstName: firstName,
+    lastName: lastName,
+    username: username,
+  );
 
-ScaffoldMessenger.of(context).showSnackBar(
-  const SnackBar(
-    content: Text(
-      "Verification email sent. Check your inbox.",
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        "Registration successful! Please check your email to activate your account.",
+      ),
     ),
-  ),
-);
+  );
 
-Navigator.pop(context); // back to login
-
-        } on FirebaseAuthException catch (e) {
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                e.message ?? "Registration failed",
-              ),
-            ),
-          );
-        }
+  Navigator.pop(context);
+} catch (e) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(e.toString()),
+    ),
+  );
+}
       }
     : null,
 
@@ -350,9 +350,6 @@ const SizedBox(height: 20),
   onTap: () async {
 
     try {
-
-      await authService.signInWithGoogle();
-
       if (context.mounted) {
         Navigator.pop(context);
       }

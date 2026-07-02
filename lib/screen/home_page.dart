@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:k54_mobile/Profile/profile_page.dart';
-import '../models/post_model.dart';
-import '../services/api_service.dart';
-import '../widgets/post_card.dart';
+import '../Profile/timeline_page.dart';
 import '../communication/communication_navigation.dart';
 import '../posts/create_post_page.dart';
 import '../widgets/bottom_navigation.dart';
@@ -17,19 +15,6 @@ class HomePage extends StatefulWidget {
 
 
 class _HomePageState extends State<HomePage> {
-
-  final ApiService apiService = ApiService();
-
-  late Future<List<Post>> posts;
-
-
-  @override
-  void initState() {
-    super.initState();
-    posts = apiService.getPosts();
-  }
-
-
   @override
   Widget build(BuildContext context) {
 
@@ -62,7 +47,7 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ProfilePage(),
+       builder: (context) => ProfilePage(),
       ),
     );
 
@@ -236,77 +221,9 @@ IconButton(
 
 
             // Feed
-            Expanded(
-
-              child: FutureBuilder<List<Post>>(
-
-                future: posts,
-
-
-                builder: (context, snapshot) {
-
-
-                  // Loading
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-
-                  }
-
-
-                  // Error
-                  if (snapshot.hasError) {
-
-                    return const Center(
-                      child: Text(
-                        "Error loading posts",
-                      ),
-                    );
-
-                  }
-
-
-                  // No Data
-                  if (!snapshot.hasData ||
-                      snapshot.data!.isEmpty) {
-
-                    return const Center(
-                      child: Text(
-                        "No posts available",
-                      ),
-                    );
-
-                  }
-
-
-                  // Posts List
-                  return ListView.builder(
-
-                    itemCount: snapshot.data!.length,
-
-
-                    itemBuilder: (context, index) {
-
-
-                      final post = snapshot.data![index];
-
-
-                      return PostCard(
-                        post: post,
-                      );
-
-                    },
-
-                  );
-
-                },
-
-              ),
-
-            ),
+             Expanded(
+  child: TimelinePage(),
+),
 
           ],
 

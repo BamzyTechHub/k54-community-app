@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/post_model.dart';
 
 class PostCard extends StatelessWidget {
@@ -11,159 +13,174 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Card(
       margin: const EdgeInsets.symmetric(
         horizontal: 15,
         vertical: 10,
       ),
-
-      padding: const EdgeInsets.all(15),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: Colors.grey.shade300,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                 CircleAvatar(
+  radius: 24,
+  backgroundColor: Colors.grey.shade200,
+  backgroundImage: post.profileImage.isNotEmpty
+      ? CachedNetworkImageProvider(post.profileImage)
+      : null,
+  child: post.profileImage.isEmpty
+      ? const Icon(Icons.person)
+      : null,
+),
+                const SizedBox(width: 12),
+              Expanded(
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      Text(
+        post.username,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
         ),
       ),
 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(height: 3),
+
+      Row(
         children: [
 
-          // Profile section
-          Row(
-            children: [
+          if (post.profession.isNotEmpty)
 
-              CircleAvatar(
-                radius: 25,
-                backgroundImage: NetworkImage(
-                  post.profileImage,
+            Flexible(
+              child: Text(
+                post.profession,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+
+          const SizedBox(width: 6),
+
+          Text(
+            post.time.isEmpty
+                ? post.createdAt.toString().substring(0,10)
+                : post.time,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 12,
+            ),
+          ),
+
+          const SizedBox(width: 5),
+
+          Icon(
+            post.privacy == "public"
+                ? Icons.public
+                : Icons.lock_outline,
+            size: 14,
+            color: Colors.grey,
+          ),
+        ],
+      ),
+    ],
+  ),
+),
+
+PopupMenuButton(
+  icon: const Icon(Icons.more_horiz),
+  itemBuilder: (_) => const [
+    PopupMenuItem(
+      value: "report",
+      child: Text("Report"),
+    ),
+  ],
+),
+              ],
+            ),
+
+            const SizedBox(height: 15),
+
+            Html(
+  data: post.caption,
+  style: {
+    "body": Style(
+      margin: Margins.zero,
+      padding: HtmlPaddings.zero,
+      fontSize: FontSize(15),
+      lineHeight: const LineHeight(1.5),
+    ),
+    "p": Style(
+      margin: Margins.only(bottom: 10),
+    ),
+  },
+),
+
+            if (post.postImage.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 15),
+                child: ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(15),
+                  child:  CachedNetworkImage(
+  imageUrl: post.postImage,
+  width: double.infinity,
+  fit: BoxFit.cover,
+
+  placeholder: (_,__) => Container(
+    height: 250,
+    alignment: Alignment.center,
+    child: const CircularProgressIndicator(),
+  ),
+
+  errorWidget: (_,__,___) =>
+      const SizedBox.shrink(),
+),
                 ),
               ),
 
-              const SizedBox(width: 10),
+            const SizedBox(height: 18),
+            const Divider(height: 28),
 
-              Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-
-                  Text(
-                    post.username,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  Text(
-                    post.profession,
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 14,
-                    ),
-                  ),
-
-                ],
-              ),
-
-            ],
-          ),
-
-          const SizedBox(height: 15),
-
-
-          // Caption
-          Text(
-            post.caption,
-            style: const TextStyle(
-              fontSize: 15,
-              height: 1.4,
-            ),
-          ),
-
-
-          const SizedBox(height: 15),
-
-
-          // Post image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-
-            child: Image.network(
-              post.postImage,
-              width: double.infinity,
-              height: 220,
-              fit: BoxFit.cover,
-            ),
-          ),
-
-
-          const SizedBox(height: 15),
-
-
-          // Post actions
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceAround,
-
-            children: [
-
-              _actionButton(
-                Icons.thumb_up_alt_outlined,
-                "Like",
-              ),
-
-              _actionButton(
-                Icons.mode_comment_outlined,
-                "Comment",
-              ),
-
-              _actionButton(
-                Icons.repeat,
-                "Share",
-              ),
-
-              _actionButton(
-                Icons.send_outlined,
-                "Send",
-              ),
-
-            ],
-          ),
-
-        ],
+  children: [
+    Expanded(
+      child: TextButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.favorite_border),
+        label: Text(post.likes.toString()),
       ),
-    );
-  }
-
-
-  Widget _actionButton(
-    IconData icon,
-    String text,
-  ) {
-
-    return Column(
-      children: [
-
-        Icon(
-          icon,
-          size: 25,
-          color: Colors.black87,
+    ),
+    Expanded(
+      child: TextButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.chat_bubble_outline),
+        label: Text(post.comments.toString()),
+      ),
+    ),
+    Expanded(
+      child: TextButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.share_outlined),
+        label: Text(post.shares.toString()),
+      ),
+    ),
+  ],
+),
+          ],
         ),
-
-        const SizedBox(height: 5),
-
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 13,
-          ),
-        ),
-
-      ],
+      ),
     );
   }
 }

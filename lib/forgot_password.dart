@@ -109,11 +109,6 @@ void dispose() {
     }
 
     try {
-
-      await authService.resetPassword(
-        email: emailController.text.trim(),
-      );
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
