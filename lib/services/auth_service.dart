@@ -7,6 +7,12 @@ class AuthService {
   final ApiService _api = ApiService.instance;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
+Future<Response> getMember(String userId) async {
+  return ApiService.instance.get(
+    "/buddyboss/v1/members/$userId",
+  );
+}
+
   /// Login
   Future<bool> login({
     required String username,

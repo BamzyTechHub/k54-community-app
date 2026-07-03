@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/post_model.dart';
+import '../Profile/profile_page.dart';
+import '../services/buddyboss_service.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
+final VoidCallback? onLikeChanged;
 
   const PostCard({
-    super.key,
-    required this.post,
-  });
+  super.key,
+  required this.post,
+  this.onLikeChanged,
+});
 
   @override
   Widget build(BuildContext context) {
@@ -29,15 +33,48 @@ class PostCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                 CircleAvatar(
-  radius: 24,
-  backgroundColor: Colors.grey.shade200,
-  backgroundImage: post.profileImage.isNotEmpty
-      ? CachedNetworkImageProvider(post.profileImage)
-      : null,
-  child: post.profileImage.isEmpty
-      ? const Icon(Icons.person)
-      : null,
+                if (post.isPinned)
+  const Padding(
+    padding: EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        Icon(
+          Icons.push_pin,
+          size: 14,
+          color: Colors.orange,
+        ),
+        SizedBox(width: 4),
+        Text(
+          "Pinned",
+          style: TextStyle(
+            color: Colors.orange,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  ),
+                 GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfilePage(
+          userId: post.userId,
+        ),
+      ),
+    );
+  },
+  child: CircleAvatar(
+    radius: 24,
+    backgroundColor: Colors.grey.shade200,
+    backgroundImage: post.profileImage.isNotEmpty
+        ? CachedNetworkImageProvider(post.profileImage)
+        : null,
+    child: post.profileImage.isEmpty
+        ? const Icon(Icons.person)
+        : null,
+  ),
 ),
                 const SizedBox(width: 12),
               Expanded(
@@ -45,14 +82,25 @@ class PostCard extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
 
-      Text(
-        post.username,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
+       GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfilePage(
+          userId: post.userId,
         ),
       ),
-
+    );
+  },
+  child: Text(
+    post.username,
+    style: const TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 16,
+    ),
+  ),
+),
       const SizedBox(height: 3),
 
       Row(
@@ -98,14 +146,69 @@ class PostCard extends StatelessWidget {
   ),
 ),
 
-PopupMenuButton(
+PopupMenuButton<String>(
   icon: const Icon(Icons.more_horiz),
-  itemBuilder: (_) => const [
-    PopupMenuItem(
-      value: "report",
-      child: Text("Report"),
-    ),
-  ],
+  onSelected: (value) {
+    switch (value) {
+      case "edit":
+        // TODO: Edit post
+        break;
+
+      case "delete":
+        // TODO: Delete post
+        break;
+
+      case "report":
+        showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("Report post"),
+            content: const Text(
+              "Are you sure you want to report this post?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Post reported"),
+                    ),
+                  );
+                },
+                child: const Text("Report"),
+              ),
+            ],
+          ),
+        );
+        break;
+    }
+  },
+  itemBuilder: (_) {
+    if (post.canEdit) {
+      return const [
+        PopupMenuItem(
+          value: "edit",
+          child: Text("Edit"),
+        ),
+        PopupMenuItem(
+          value: "delete",
+          child: Text("Delete"),
+        ),
+      ];
+    }
+
+    return const [
+      PopupMenuItem(
+        value: "report",
+        child: Text("Report"),
+      ),
+    ];
+  },
 ),
               ],
             ),
@@ -150,6 +253,14 @@ PopupMenuButton(
                 ),
               ),
 
+if (post.previewData.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Html(
+      data: post.previewData,
+    ),
+  ),
+
             const SizedBox(height: 18),
             const Divider(height: 28),
 
@@ -157,8 +268,22 @@ PopupMenuButton(
   children: [
     Expanded(
       child: TextButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.favorite_border),
+        onPressed: () async {
+  final updated = await BuddyBossService().toggleFavorite(
+    int.parse(post.id),
+  );
+
+  post.likes = updated.likes;
+  post.isFavorited = updated.isFavorited;
+
+  onLikeChanged?.call();
+},
+        icon: Icon(
+  post.isFavorited
+      ? Icons.favorite
+      : Icons.favorite_border,
+  color: post.isFavorited ? Colors.red : null,
+),
         label: Text(post.likes.toString()),
       ),
     ),

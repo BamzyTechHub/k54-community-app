@@ -109,21 +109,18 @@ class _HomePageState extends State<HomePage> {
                  // Create Post
 IconButton(
 
-  onPressed: () {
+  onPressed: () async {
 
-    Navigator.push(
+    final created = await Navigator.push<bool>(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const CreatePostPage(),
+  ),
+);
 
-      context,
-
-      MaterialPageRoute(
-
-        builder: (context) =>
-            const CreatePostPage(),
-
-      ),
-
-    );
-
+if (created == true && mounted) {
+  setState(() {});
+}
   },
 
   icon: const Icon(
@@ -222,7 +219,9 @@ IconButton(
 
             // Feed
              Expanded(
-  child: TimelinePage(),
+  child: TimelinePage(
+    key: ValueKey(DateTime.now().millisecondsSinceEpoch),
+  ),
 ),
 
           ],

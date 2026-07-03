@@ -5,7 +5,12 @@ import '../services/buddyboss_service.dart';
 import '../widgets/post_card.dart';
 
 class TimelinePage extends StatefulWidget {
-  const TimelinePage({super.key});
+  final String? userId;
+
+  const TimelinePage({
+    super.key,
+    this.userId,
+  });
 
   @override
   State<TimelinePage> createState() => _TimelinePageState();
@@ -21,10 +26,18 @@ class _TimelinePageState extends State<TimelinePage> {
     super.initState();
     _loadTimeline();
   }
+  @override
+void didUpdateWidget(covariant TimelinePage oldWidget) {
+  super.didUpdateWidget(oldWidget);
+
+  _loadTimeline();
+}
 
   void _loadTimeline() {
-    _timelineFuture = _buddyBossService.getTimeline();
-  }
+  _timelineFuture = _buddyBossService.getTimeline(
+    userId: widget.userId,
+  );
+}
 
   Future<void> _refresh() async {
     setState(() {
@@ -33,6 +46,10 @@ class _TimelinePageState extends State<TimelinePage> {
 
     await _timelineFuture;
   }
+
+  Future<void> refreshTimeline() async {
+  await _refresh();
+}
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +95,14 @@ class _TimelinePageState extends State<TimelinePage> {
             itemCount: posts.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              return PostCard(
-                post: posts[index],
-              );
+               return PostCard(
+  post: posts[index],
+  onLikeChanged: () {
+    setState(() {
+      _loadTimeline();
+    });
+  },
+);
             },
           ),
         );

@@ -8,7 +8,7 @@ class Post {
   final String profileImage;
   final String caption;
   final String postImage;
-  final int likes;
+  int likes;
   final int comments;
   final int shares;
   final DateTime createdAt;
@@ -19,6 +19,9 @@ final String profileLink;
 final bool isPinned;
 final String privacy;
 final String previewData;
+bool isFavorited;
+final bool canEdit;
+final bool canDelete;
 
   Post({
     required this.id,
@@ -39,6 +42,9 @@ final String previewData;
     required this.isPinned,
     required this.privacy,
     required this.previewData,
+    required this.isFavorited,
+    required this.canEdit,
+    required this.canDelete,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -63,6 +69,9 @@ final String previewData;
       isPinned: json["isPinned"] ?? false,
       privacy: json["privacy"] ?? "",
       previewData: json["previewData"] ?? "",  
+isFavorited: json["favorited"] ?? false,
+      canEdit: json["can_edit"] ?? false,
+      canDelete: json["can_delete"] ?? false,
     );
   }
 
@@ -120,18 +129,22 @@ if (image.isEmpty &&
       createdAt:
       DateTime.tryParse(json["date"] ?? "") ?? DateTime.now(),
       time: json["date"] ?? "",
+      isFavorited: json["favorited"] ?? false,
+      canEdit: json["can_edit"] ?? false,
+      canDelete: json["can_delete"] ?? false,
 
 canComment: json["can_comment"] ?? false,
 
 activityType: json["type"] ?? "",
 
-profileLink: json["link"] ?? "",
+profileLink: "https://k54global.com/members/${json["user_id"]}",
 
 isPinned: json["is_pinned"] ?? false,
 
 privacy: json["privacy"] ?? "public",
 
-previewData: json["preview_data"]?.toString() ?? "",  
+previewData: json["preview_data"]?.toString() ?? "", 
+
     );
   }
 

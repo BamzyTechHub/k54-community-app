@@ -10,12 +10,20 @@ import 'profile_actions.dart';
 import 'profile_tabs.dart';
 import 'timeline_page.dart';
 import '../services/auth_service.dart';
+
+
 class ProfilePage extends StatefulWidget {
-const ProfilePage({super.key});
-@override
-State createState() => _ProfilePageState();
+  final String? userId;
+
+  const ProfilePage({
+    super.key,
+    this.userId,
+  });
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
 }
-class _ProfilePageState extends State {
+class _ProfilePageState extends State<ProfilePage> {
   //  User Data
    String userName = "";
 String userEmail = "";
@@ -30,9 +38,12 @@ void initState() {
   super.initState();
   loadUserData();
 }
+
 Future loadUserData() async {
   try {
-    final response = await AuthService().getCurrentUser();
+    final response = widget.userId == null
+    ? await AuthService().getCurrentUser()
+    : await AuthService().getMember(widget.userId!);
     final user = response.data;
     setState(() {
   userName = user["name"] ?? "";
@@ -96,7 +107,7 @@ ProfileStats(
                
      const SizedBox(height: 20),
 ProfileActions(
-  isCurrentUser: true,
+  isCurrentUser: widget.userId == null,
 ),
 const SizedBox(height: 20),
 ProfileTabs(
@@ -158,7 +169,9 @@ const SizedBox(height: 20),
 if (selectedTab == 0)
    SizedBox(
     height: 600,
-    child: TimelinePage(),
+    child: TimelinePage(
+    userId: widget.userId,
+),
   ),
  
 if (selectedTab == 1)
