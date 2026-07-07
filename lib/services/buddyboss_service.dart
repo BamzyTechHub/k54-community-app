@@ -1,8 +1,8 @@
-import 'dart:convert';
 import '../models/post_model.dart';
 import 'api_service.dart';
 
 class BuddyBossService {
+  final ApiService _api = ApiService.instance;
 
   Future<Post> toggleFavorite(int activityId) async {
   final response = await _api.post(
@@ -13,59 +13,41 @@ class BuddyBossService {
   return Post.fromBuddyBoss(response.data);
 }
 
-  final ApiService _api = ApiService.instance;
-  Future<void> testLike(int activityId) async {
+  /// Toggles a post's pinned state. The endpoint's response shape hasn't
+  /// been independently captured (unlike /favorite, which is confirmed
+  /// working) — this assumes the same single-POST-toggle, full-Post-object
+  /// response pattern since it's the same /activity/{id}/{action} resource
+  /// shape. If that assumption is wrong, this will surface as a parsing
+  /// exception on the caller side, not a silent wrong result.
+  Future<Post> togglePin(int activityId) async {
   final response = await _api.post(
-    "/buddyboss/v1/activity/$activityId/favorite",
+    "/buddyboss/v1/activity/$activityId/pin",
     {},
   );
 
-  print("========== LIKE RESPONSE ==========");
-  print(response.data);
+  return Post.fromBuddyBoss(response.data);
 }
 
   Future<List<Post>> getTimeline({
-  String? userId,
-})async {
-  final endpoint = userId == null
-    ? "/buddyboss/v1/activity"
-    : "/buddyboss/v1/activity?user_id=$userId";
+    String? userId,
+  }) async {
+    final endpoint = userId == null
+        ? "/buddyboss/v1/activity"
+        : "/buddyboss/v1/activity?user_id=$userId";
 
-// Load timeline
-final response = await _api.get(endpoint);
-  
-  
+    final response = await _api.get(endpoint);
+    final body = response.data;
 
-  print("========== TIMELINE ==========");
+    final List activities = body is List
+        ? body
+        : (body["activities"] ??
+            body["activity"] ??
+            body["data"] ??
+            body["results"] ??
+            []);
 
-  final body = response.data;
-
-final activities = body is List
-    ? body
-    : (body["activities"] ??
-        body["activity"] ??
-        body["data"] ??
-        body["results"] ??
-        []);
-
-print(const JsonEncoder.withIndent('  ').convert(activities.first));
-for (final activity in activities) {
-  print("------------");
-print("ID: ${activity["id"]}");
-print("Name: ${activity["name"]}");
-print("Avatar: ${activity["avatar_urls"] ?? activity["avatar_url"] ?? activity["user_avatar"]}");
-print("Feature Media: ${activity["feature_media"]}");
-print("Activity Data: ${activity["activity_data"]}");
-print("Comments: ${activity["comment_count"] ?? 0}");
-print("Shares: ${activity["share_count"] ?? 0}");
-print("Preview: ${activity["preview_data"]}");
-print("Profile Link: ${activity["profile_link"] ?? activity["link"]}");
-}
-
-  return activities
-      .map<Post>((item) => Post.fromBuddyBoss(item))
-      .toList();
-}
+    return activities.map<Post>((item) => Post.fromBuddyBoss(item)).toList();
+  }
 
   Future<void> createPost({
   required String content,

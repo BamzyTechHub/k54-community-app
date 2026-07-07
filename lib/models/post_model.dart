@@ -16,7 +16,7 @@ class Post {
 final bool canComment;
 final String activityType;
 final String profileLink;
-final bool isPinned;
+bool isPinned;
 final String privacy;
 final String previewData;
 bool isFavorited;

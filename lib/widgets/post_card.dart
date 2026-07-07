@@ -7,12 +7,15 @@ import '../services/buddyboss_service.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
-final VoidCallback? onLikeChanged;
+  /// Fires after any in-place mutation to [post] (like, pin, ...) so the
+  /// parent can repaint. Renamed from the old `onLikeChanged` now that
+  /// more than the like button uses it.
+  final VoidCallback? onPostChanged;
 
   const PostCard({
   super.key,
   required this.post,
-  this.onLikeChanged,
+  this.onPostChanged,
 });
 
   @override
@@ -148,7 +151,7 @@ final VoidCallback? onLikeChanged;
 
 PopupMenuButton<String>(
   icon: const Icon(Icons.more_horiz),
-  onSelected: (value) {
+  onSelected: (value) async {
     switch (value) {
       case "edit":
         // TODO: Edit post
@@ -156,6 +159,22 @@ PopupMenuButton<String>(
 
       case "delete":
         // TODO: Delete post
+        break;
+
+      case "pin":
+      case "unpin":
+        try {
+          final updated =
+              await BuddyBossService().togglePin(int.parse(post.id));
+          post.isPinned = updated.isPinned;
+          onPostChanged?.call();
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't update pin: $e")),
+            );
+          }
+        }
         break;
 
       case "report":
@@ -190,14 +209,21 @@ PopupMenuButton<String>(
   },
   itemBuilder: (_) {
     if (post.canEdit) {
-      return const [
-        PopupMenuItem(
+      return [
+        const PopupMenuItem(
           value: "edit",
           child: Text("Edit"),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: "delete",
           child: Text("Delete"),
+        ),
+        // No confirmed permission field exists for pinning specifically
+        // (only can_edit/can_delete/can_comment are), so this reuses the
+        // same owner-level gate as edit/delete rather than a dedicated one.
+        PopupMenuItem(
+          value: post.isPinned ? "unpin" : "pin",
+          child: Text(post.isPinned ? "Unpin" : "Pin to top"),
         ),
       ];
     }
@@ -276,7 +302,7 @@ if (post.previewData.isNotEmpty)
   post.likes = updated.likes;
   post.isFavorited = updated.isFavorited;
 
-  onLikeChanged?.call();
+  onPostChanged?.call();
 },
         icon: Icon(
   post.isFavorited
