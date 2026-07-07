@@ -103,12 +103,27 @@ class _NewConversationPageState extends State<NewConversationPage> {
                 ],
               ),
               const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3EFD9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  "You can reopen an existing conversation with a friend "
+                  "here. Starting a brand-new conversation isn't available "
+                  "yet - it's coming in a future update.",
+                  style: TextStyle(fontSize: 12.5, height: 1.3),
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _searchController,
                 autofocus: true,
                 onChanged: _onQueryChanged,
                 decoration: InputDecoration(
-                  hintText: "Search members by name...",
+                  hintText: "Search your friends...",
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
                   fillColor: const Color(0xFFF7F7F7),
@@ -135,10 +150,10 @@ class _NewConversationPageState extends State<NewConversationPage> {
       return Center(child: Text("Search failed: $_error"));
     }
     if (_searchController.text.trim().isEmpty) {
-      return const Center(child: Text("Search for a member to message"));
+      return const Center(child: Text("Search for a friend to message"));
     }
     if (_results.isEmpty) {
-      return const Center(child: Text("No members found"));
+      return const Center(child: Text("No friends found"));
     }
 
     return ListView.separated(

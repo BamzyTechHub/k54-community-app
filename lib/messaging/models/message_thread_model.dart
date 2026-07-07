@@ -1,6 +1,8 @@
 import 'chat_message_model.dart';
 
-/// A BuddyBoss message thread (what shows up as one row on the inbox list).
+/// A Better Messages thread (what shows up as one row on the inbox list) -
+/// the website's real messaging system, see
+/// docs/api-audit/messaging-better-messages.md.
 class MessageThread {
   final String id;
   final String otherUserId;
@@ -10,6 +12,8 @@ class MessageThread {
   final DateTime lastMessageDate;
   final int unreadCount;
   final List<ChatMessage> messages;
+  final bool isPinned;
+  final bool isMuted;
 
   MessageThread({
     required this.id,
@@ -20,6 +24,8 @@ class MessageThread {
     required this.lastMessageDate,
     required this.unreadCount,
     this.messages = const [],
+    this.isPinned = false,
+    this.isMuted = false,
   });
 
   bool get isUnread => unreadCount > 0;
@@ -29,6 +35,8 @@ class MessageThread {
     List<ChatMessage>? messages,
     String? lastMessagePreview,
     DateTime? lastMessageDate,
+    bool? isPinned,
+    bool? isMuted,
   }) {
     return MessageThread(
       id: id,
@@ -39,75 +47,62 @@ class MessageThread {
       lastMessageDate: lastMessageDate ?? this.lastMessageDate,
       unreadCount: unreadCount ?? this.unreadCount,
       messages: messages ?? this.messages,
+      isPinned: isPinned ?? this.isPinned,
+      isMuted: isMuted ?? this.isMuted,
     );
   }
 
-  factory MessageThread.fromJson(
+  /// Builds a thread from Better Messages' response envelope, which
+  /// returns threads/users/messages as three separate top-level arrays
+  /// (confirmed shape, `thread/{id}` and `threads` responses) rather than
+  /// nesting them - [users] and [threadMessages] must already be filtered/
+  /// looked up by the caller for this specific thread.
+  factory MessageThread.fromBetterMessages(
     Map<String, dynamic> json, {
     required String currentUserId,
+    required Map<String, Map<String, dynamic>> usersById,
+    required List<Map<String, dynamic>> threadMessages,
   }) {
-    // Confirmed against the live k54global.com response (2026-07-06):
-    // BuddyBoss returns 'recipients' as a JSON object keyed by user ID,
-    // e.g. {"5": {...}, "12": {...}} — not a JSON array. This matches
-    // BuddyPress core's internal BP_Messages_Thread::$recipients, which
-    // is PHP-associative by user ID. An empty PHP array still encodes
-    // as `[]`, so a List is tolerated here too (as "no recipients"),
-    // but a populated recipients list is only ever a Map on this site.
-    final recipientsRaw = json['recipients'];
-    final recipients = recipientsRaw is Map
-        ? recipientsRaw.values
-            .map((v) => Map<String, dynamic>.from(v as Map))
-            .toList()
-        : <Map<String, dynamic>>[];
-
-    // 'recipients' includes every participant; find the one who isn't me
-    // for a 1:1 thread. Group threads aren't handled here yet.
-    //
-    // Each recipient object carries two different IDs — confirmed from the
-    // live payload, e.g. {id: 8, user_id: 5, ...} where the outer Map key
-    // ("5") matches user_id, not id. `id` is the bp_messages_recipients
-    // row's own ID; `user_id` is the actual WP user ID, which is what must
-    // be compared against currentUserId. Using `id` here always failed to
-    // match, so the loop fell through to "whichever recipient came first"
-    // every time — which was consistently the current user.
-    Map<String, dynamic>? other;
-    for (final r in recipients) {
-      final rId = (r['user_id'] ?? '').toString();
-      if (rId != currentUserId) {
-        other = r;
+    final participants = (json['participants'] as List?) ?? [];
+    String? otherUserId;
+    for (final p in participants) {
+      final pid = p.toString();
+      if (pid != currentUserId) {
+        otherUserId = pid;
         break;
       }
     }
-    other ??= recipients.isNotEmpty ? recipients.first : null;
+    otherUserId ??= participants.isNotEmpty ? participants.first.toString() : '';
 
-    final messagesJson = (json['messages'] as List?) ?? [];
-    final messages = messagesJson
-        .map((m) => ChatMessage.fromJson(
-              m as Map<String, dynamic>,
+    final otherUser = usersById[otherUserId];
+
+    final sortedMessages = [...threadMessages]
+      ..sort((a, b) => (a['created_at'] as num? ?? 0).compareTo(b['created_at'] as num? ?? 0));
+
+    final messages = sortedMessages
+        .map((m) => ChatMessage.fromBetterMessages(
+              m,
               currentUserId: currentUserId,
+              senderUser: usersById[(m['sender_id'] ?? '').toString()],
             ))
         .toList();
 
+    final lastMessage = messages.isNotEmpty ? messages.last : null;
+
     return MessageThread(
-      id: (json['id'] ?? json['thread_id'] ?? '').toString(),
-      // Same user_id-vs-id distinction as above: user_id is the real WP
-      // user ID, id is the recipient row's own ID.
-      otherUserId: (other?['user_id'] ?? '').toString(),
-      otherUserName: (other?['name'] ?? 'Unknown').toString(),
-      otherUserAvatar:
-          (other?['user_avatar']?['thumb'] ?? other?['avatar_urls']?['thumb'])
-              ?.toString(),
-      lastMessagePreview: stripHtml(
-        extractRendered(json['excerpt'] ?? json['message']),
-      ),
-      lastMessageDate:
-          DateTime.tryParse((json['date'] ?? json['last_message_date'] ?? '')
-                  .toString()) ??
-              DateTime.now(),
-      unreadCount: json['unread_count'] is bool
-          ? (json['unread_count'] == true ? 1 : 0)
-          : int.tryParse('${json['unread_count'] ?? 0}') ?? 0,
+      id: (json['thread_id'] ?? json['id'] ?? '').toString(),
+      otherUserId: otherUserId,
+      otherUserName: (otherUser?['name'] ?? 'Unknown').toString(),
+      otherUserAvatar: otherUser?['avatar']?.toString(),
+      lastMessagePreview: lastMessage?.message ?? '',
+      lastMessageDate: lastMessage?.date ??
+          parseBetterMessagesTimestamp(json['lastTime']),
+      unreadCount: json['unread'] is bool
+          ? (json['unread'] == true ? 1 : 0)
+          : int.tryParse('${json['unread'] ?? 0}') ?? 0,
       messages: messages,
+      isPinned: json['isPinned'] == 1 || json['isPinned'] == true,
+      isMuted: json['isMuted'] == true,
     );
   }
 }

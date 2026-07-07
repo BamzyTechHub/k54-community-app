@@ -2,14 +2,19 @@ import 'package:flutter/foundation.dart';
 import '../../services/auth_service.dart';
 import '../models/chat_message_model.dart';
 
-
 import '../models/message_thread_model.dart';
-import '../services/messaging_api_service.dart';
+import '../services/better_messages_api_service.dart';
 
-/// Single source of truth for messaging data.
+/// Single source of truth for messaging data, backed by Better Messages -
+/// the same system the website's own `/messenger/` UI uses (see
+/// docs/api-audit/messaging-better-messages.md). Previously called
+/// BuddyBoss's own native messaging REST API, which is a separate,
+/// disconnected message store the website doesn't use - that meant
+/// messages sent from this app could never appear on the website and vice
+/// versa. Migrated so both platforms are finally looking at the same data.
 ///
 /// All screens/controllers go through this repository instead of calling
-/// MessagingApiService directly. That gives us:
+/// BetterMessagesApiService directly. That gives us:
 ///   - one in-memory cache of threads (avoids re-fetching the inbox from
 ///     three different screens on every navigation)
 ///   - one place that resolves "does a thread with this member already
@@ -21,7 +26,7 @@ class MessagingRepository {
   MessagingRepository._internal();
   static final MessagingRepository instance = MessagingRepository._internal();
 
-  final MessagingApiService _api = MessagingApiService();
+  final BetterMessagesApiService _api = BetterMessagesApiService();
   final AuthService _authService = AuthService();
 
   String? _cachedUserId;
@@ -43,29 +48,51 @@ class MessagingRepository {
     unreadCount.value = _threadsCache.where((t) => t.isUnread).length;
   }
 
+  /// threads/users/messages come back as three separate top-level arrays
+  /// (confirmed shape) rather than nested per-thread - this joins them
+  /// client-side into hydrated MessageThread objects.
+  List<MessageThread> _hydrate(
+    Map<String, dynamic> envelope,
+    String currentUserId,
+  ) {
+    final threadsRaw = (envelope['threads'] as List?) ?? [];
+    final usersRaw = (envelope['users'] as List?) ?? [];
+    final messagesRaw = (envelope['messages'] as List?) ?? [];
+
+    final usersById = <String, Map<String, dynamic>>{};
+    for (final u in usersRaw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(u);
+      final id = (map['user_id'] ?? map['id'] ?? '').toString();
+      if (id.isNotEmpty) usersById[id] = map;
+    }
+
+    final messagesByThread = <String, List<Map<String, dynamic>>>{};
+    for (final m in messagesRaw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(m);
+      final threadId = (map['thread_id'] ?? '').toString();
+      messagesByThread.putIfAbsent(threadId, () => []).add(map);
+    }
+
+    return threadsRaw.whereType<Map>().map((t) {
+      final map = Map<String, dynamic>.from(t);
+      final threadId = (map['thread_id'] ?? map['id'] ?? '').toString();
+      return MessageThread.fromBetterMessages(
+        map,
+        currentUserId: currentUserId,
+        usersById: usersById,
+        threadMessages: messagesByThread[threadId] ?? const [],
+      );
+    }).toList();
+  }
+
   /// Refreshes the inbox from the server. Always the source of truth for
   /// the unread badge.
   Future<List<MessageThread>> refreshThreads() async {
     final userId = await currentUserId();
-    final response = await _api.getThreads(userId);
+    final response = await _api.getThreads();
+    final envelope = response.data as Map<String, dynamic>;
 
-    // TODO(debug): temporary — remove once real /messages shape is confirmed.
-    debugPrint("=== [GET /messages] response.data.runtimeType: ${response.data.runtimeType} ===");
-    debugPrint("=== [GET /messages] response.data: ${response.data} ===");
-    if (response.data is Map) {
-      debugPrint("=== [GET /messages] top-level keys: ${(response.data as Map).keys.toList()} ===");
-    }
-
-    final List data = response.data is List
-        ? response.data
-        : (response.data['threads'] ?? response.data['data'] ?? []);
-
-    _threadsCache = data
-        .map((t) => MessageThread.fromJson(
-              t as Map<String, dynamic>,
-              currentUserId: userId,
-            ))
-        .toList()
+    _threadsCache = _hydrate(envelope, userId)
       ..sort((a, b) => b.lastMessageDate.compareTo(a.lastMessageDate));
 
     _recalculateUnread();
@@ -77,26 +104,23 @@ class MessagingRepository {
   Future<MessageThread> getThread(String threadId) async {
     final userId = await currentUserId();
     final response = await _api.getThread(threadId);
+    final envelope = response.data as Map<String, dynamic>;
 
-    // TODO(debug): temporary — remove once real /messages/{id} shape is confirmed.
-    debugPrint("=== [GET /messages/$threadId] response.data.runtimeType: ${response.data.runtimeType} ===");
-    debugPrint("=== [GET /messages/$threadId] response.data: ${response.data} ===");
-    if (response.data is Map) {
-      debugPrint("=== [GET /messages/$threadId] top-level keys: ${(response.data as Map).keys.toList()} ===");
-    }
-
-    final thread = MessageThread.fromJson(
-      response.data as Map<String, dynamic>,
-      currentUserId: userId,
+    final hydrated = _hydrate(envelope, userId);
+    final thread = hydrated.firstWhere(
+      (t) => t.id == threadId,
+      orElse: () => hydrated.isNotEmpty
+          ? hydrated.first
+          : throw StateError("Thread $threadId not found in response"),
     );
     _patchCache(thread);
     return thread;
   }
 
   /// Fetches only the messages newer than [afterMessageId], for polling.
-  /// BuddyBoss doesn't offer a "since" filter on this endpoint, so this
-  /// re-fetches the thread and diffs client-side rather than trusting a
-  /// server-side incremental filter that doesn't exist.
+  /// No confirmed "since" filter exists for a single thread, so this
+  /// re-fetches the thread and diffs client-side, same approach used
+  /// against the old BuddyBoss API for the same reason.
   Future<List<ChatMessage>> pollNewMessages({
     required String threadId,
     required String? lastKnownMessageId,
@@ -115,16 +139,23 @@ class MessagingRepository {
     required String message,
   }) async {
     final userId = await currentUserId();
-    final response = await _api.replyToThread(threadId: threadId, message: message);
-    final thread = MessageThread.fromJson(
-      response.data as Map<String, dynamic>,
-      currentUserId: userId,
-    );
-    _patchCache(thread);
+    final tempId = "tmp_${threadId}_${DateTime.now().millisecondsSinceEpoch}";
 
+    // The send response body isn't a confirmed shape (see
+    // BetterMessagesApiService.sendMessage's doc comment) - re-fetch the
+    // thread afterward instead of trusting anything back from this call.
+    await _api.sendMessage(
+      threadId: threadId,
+      message: message,
+      tempId: tempId,
+      tempTime: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    final thread = await getThread(threadId);
     if (thread.messages.isNotEmpty) return thread.messages.last;
+
     return ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: tempId,
       senderId: userId,
       senderName: "You",
       message: message,
@@ -133,15 +164,16 @@ class MessagingRepository {
     );
   }
 
-  /// Finds an existing 1:1 thread with [otherUserId] in the cache, or
-  /// starts a new one. This is the ONLY path both "New Conversation" and
-  /// the profile "Message" button should use, so we never create
-  /// duplicate threads for the same pair of members.
+  /// Finds an existing 1:1 thread with [otherUserId] in the cache and
+  /// opens it. Starting a genuinely NEW conversation (no existing thread)
+  /// requires `getUniqueConversation`, which has no confirmed request
+  /// shape yet (see BetterMessagesApiService's doc comment) - callers must
+  /// handle the thrown [StateError] rather than this silently guessing a
+  /// payload that could create a malformed or invisible thread.
   Future<MessageThread> findOrCreateThreadWith({
     required String otherUserId,
     String openingMessage = "Hi!",
   }) async {
-    // Make sure the cache is warm before checking for an existing thread.
     if (_threadsCache.isEmpty) {
       await refreshThreads();
     }
@@ -152,46 +184,59 @@ class MessagingRepository {
       }
     }
 
-    final userId = await currentUserId();
-    final response =
-        await _api.startThread(recipientId: otherUserId, message: openingMessage);
-    final thread = MessageThread.fromJson(
-      response.data as Map<String, dynamic>,
-      currentUserId: userId,
+    throw StateError(
+      "Starting a new conversation isn't available yet - the real "
+      "request shape for Better Messages' getUniqueConversation endpoint "
+      "hasn't been confirmed. You can only open existing conversations "
+      "right now.",
     );
-    _patchCache(thread);
-    return thread;
   }
 
+  /// No confirmed REST endpoint marks a single thread read (the website
+  /// only demonstrated this over its WebSocket's `threadOpen` event,
+  /// deferred to Stage C) - this only updates the local cache/badge
+  /// optimistically. Worst case the badge is stale until the next
+  /// refreshThreads() call, the same acceptable-risk bar used elsewhere in
+  /// this app for unconfirmed write endpoints.
   Future<void> markThreadRead(String threadId) async {
-    try {
-      await _api.markThread(threadId: threadId, action: "unread", value: false);
-    } catch (_) {
-      // Non-fatal — worst case the badge stays slightly stale until next refresh.
-    }
     final index = _threadsCache.indexWhere((t) => t.id == threadId);
     if (index != -1) {
-      final t = _threadsCache[index];
-      _threadsCache[index] = MessageThread(
-        id: t.id,
-        otherUserId: t.otherUserId,
-        otherUserName: t.otherUserName,
-        otherUserAvatar: t.otherUserAvatar,
-        lastMessagePreview: t.lastMessagePreview,
-        lastMessageDate: t.lastMessageDate,
-        unreadCount: 0,
-        messages: t.messages,
-      );
+      _threadsCache[index] = _threadsCache[index].copyWith(unreadCount: 0);
       _recalculateUnread();
     }
   }
 
+  Future<void> pinThread(String threadId) async {
+    await _api.pinThread(threadId);
+    final index = _threadsCache.indexWhere((t) => t.id == threadId);
+    if (index != -1) {
+      _threadsCache[index] = _threadsCache[index].copyWith(isPinned: true);
+    }
+  }
+
+  Future<void> unpinThread(String threadId) async {
+    await _api.unpinThread(threadId);
+    final index = _threadsCache.indexWhere((t) => t.id == threadId);
+    if (index != -1) {
+      _threadsCache[index] = _threadsCache[index].copyWith(isPinned: false);
+    }
+  }
+
+  Future<void> eraseThread(String threadId) async {
+    await _api.eraseThread(threadId);
+    _threadsCache.removeWhere((t) => t.id == threadId);
+    _recalculateUnread();
+  }
+
   Future<List<dynamic>> searchMembers(String query) async {
-    final response = await _api.searchMembers(query);
-    final List data = response.data is List
-        ? response.data
-        : (response.data['members'] ?? response.data['data'] ?? []);
-    return data;
+    final response = await _api.getFriends();
+    final List all = response.data is List ? response.data : [];
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all.whereType<Map>().where((m) {
+      final name = (m['name'] ?? '').toString().toLowerCase();
+      return name.contains(q);
+    }).toList();
   }
 
   void _patchCache(MessageThread thread) {
