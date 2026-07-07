@@ -1,3 +1,4 @@
+import '../models/comment_model.dart';
 import '../models/post_model.dart';
 import 'api_service.dart';
 
@@ -27,6 +28,57 @@ class BuddyBossService {
 
   return Post.fromBuddyBoss(response.data);
 }
+
+  /// Fetches comments for an activity post. Response schema wasn't
+  /// independently captured (unlike /favorite) — parses defensively via
+  /// [Comment.fromBuddyBoss], same discipline as the rest of this service.
+  Future<List<Comment>> getComments(String activityId, {int page = 1}) async {
+    final response = await _api.get(
+      "/buddyboss/v1/activity/$activityId/comment",
+      query: {"page": page},
+    );
+
+    final body = response.data;
+    final List raw = body is List
+        ? body
+        : (body["comments"] ?? body["data"] ?? body["results"] ?? []);
+
+    return raw
+        .whereType<Map>()
+        .map((c) => Comment.fromBuddyBoss(Map<String, dynamic>.from(c)))
+        .toList();
+  }
+
+  /// Posts a new comment, or a reply if [replyToCommentId] is given.
+  /// Replies target the parent comment's own id as the endpoint's {id} -
+  /// BuddyBoss's comment tree treats each comment as an activity item in
+  /// its own right, so commenting "on" a comment nests it underneath.
+  /// Unconfirmed against a live response - same caveat as getComments.
+  Future<Comment> postComment({
+    required String activityId,
+    required String content,
+    String? replyToCommentId,
+  }) async {
+    final targetId = replyToCommentId ?? activityId;
+    final response = await _api.post(
+      "/buddyboss/v1/activity/$targetId/comment",
+      {"content": content},
+    );
+
+    return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
+  }
+
+  /// Toggles a comment's like state via the same /favorite resource used
+  /// for posts - comments are activity items too, so this is the same
+  /// confirmed-working endpoint, just targeting a comment's id.
+  Future<Comment> toggleCommentFavorite(String commentId) async {
+    final response = await _api.post(
+      "/buddyboss/v1/activity/$commentId/favorite",
+      {},
+    );
+
+    return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
+  }
 
   Future<List<Post>> getTimeline({
     String? userId,

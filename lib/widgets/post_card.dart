@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/post_model.dart';
 import '../Profile/profile_page.dart';
 import '../services/buddyboss_service.dart';
+import 'comments_sheet.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
@@ -315,7 +316,7 @@ if (post.previewData.isNotEmpty)
     ),
     Expanded(
       child: TextButton.icon(
-        onPressed: () {},
+        onPressed: () => CommentsSheet.show(context, post),
         icon: const Icon(Icons.chat_bubble_outline),
         label: Text(post.comments.toString()),
       ),
