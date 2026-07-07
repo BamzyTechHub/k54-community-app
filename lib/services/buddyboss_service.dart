@@ -95,14 +95,23 @@ class BuddyBossService {
     return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
   }
 
+  /// Fetches a page of the timeline. [page]/[perPage] follow the standard
+  /// WP REST pagination convention used elsewhere in this API (same as
+  /// getComments) - safe to infer since it's the platform's own convention,
+  /// not a guessed custom shape.
   Future<List<Post>> getTimeline({
     String? userId,
+    int page = 1,
+    int perPage = 10,
   }) async {
-    final endpoint = userId == null
-        ? "/buddyboss/v1/activity"
-        : "/buddyboss/v1/activity?user_id=$userId";
-
-    final response = await _api.get(endpoint);
+    final response = await _api.get(
+      "/buddyboss/v1/activity",
+      query: {
+        "page": page,
+        "per_page": perPage,
+        "user_id": ?userId,
+      },
+    );
     final body = response.data;
 
     final List activities = body is List
