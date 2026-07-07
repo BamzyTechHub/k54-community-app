@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import '../models/post_model.dart';
 import '../services/buddyboss_service.dart';
 import '../services/auth_service.dart';
 
 class CreatePostPage extends StatefulWidget {
-  const CreatePostPage({super.key});
+  /// When set, this screen edits [editingPost] instead of composing a new
+  /// one - reuses the same composer UI rather than a separate edit screen,
+  /// since no distinct edit design exists and the two flows are otherwise
+  /// identical (text + privacy, currently).
+  final Post? editingPost;
+
+  const CreatePostPage({super.key, this.editingPost});
 
   @override
   State<CreatePostPage> createState() => _CreatePostPageState();
@@ -13,6 +20,7 @@ class CreatePostPage extends StatefulWidget {
 
 class _CreatePostPageState extends State<CreatePostPage> {
 
+  bool get _isEditing => widget.editingPost != null;
 
   final TextEditingController postController =
     TextEditingController();
@@ -29,6 +37,15 @@ bool schedulePost = false;
 bool uploadHighQuality = true;
 
 bool turnOffComments = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final editing = widget.editingPost;
+    if (editing != null) {
+      postController.text = editing.caption;
+    }
+  }
 
   @override
   void dispose() {
@@ -87,14 +104,23 @@ Future<void> pickImage() async {
   });
 
   try {
-    await buddyBossService.createPost(
-      content: postController.text.trim(),
-      privacy: "public",
-    );
-
-    if (!mounted) return;
-
-    Navigator.pop(context, true);
+    final editing = widget.editingPost;
+    if (editing != null) {
+      final updated = await buddyBossService.updatePost(
+        activityId: editing.id,
+        content: postController.text.trim(),
+        privacy: editing.privacy,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, updated);
+    } else {
+      await buddyBossService.createPost(
+        content: postController.text.trim(),
+        privacy: "public",
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    }
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -546,9 +572,9 @@ Row(
             strokeWidth: 2,
           ),
         )
-      : const Text(
-          "Publish",
-          style: TextStyle(
+      : Text(
+          _isEditing ? "Save Changes" : "Publish",
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/post_model.dart';
 import '../Profile/profile_page.dart';
 import '../services/buddyboss_service.dart';
+import '../posts/create_post_page.dart';
 import 'comments_sheet.dart';
 
 class PostCard extends StatelessWidget {
@@ -12,11 +13,16 @@ class PostCard extends StatelessWidget {
   /// parent can repaint. Renamed from the old `onLikeChanged` now that
   /// more than the like button uses it.
   final VoidCallback? onPostChanged;
+  /// Fires when the post has been replaced wholesale (edit changes several
+  /// final fields at once, so unlike like/pin it can't be mutated in place
+  /// - the parent must swap this post for [updated] in its own list).
+  final ValueChanged<Post>? onPostUpdated;
 
   const PostCard({
   super.key,
   required this.post,
   this.onPostChanged,
+  this.onPostUpdated,
 });
 
   @override
@@ -155,7 +161,15 @@ PopupMenuButton<String>(
   onSelected: (value) async {
     switch (value) {
       case "edit":
-        // TODO: Edit post
+        final updated = await Navigator.push<Post>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CreatePostPage(editingPost: post),
+          ),
+        );
+        if (updated != null) {
+          onPostUpdated?.call(updated);
+        }
         break;
 
       case "delete":

@@ -99,10 +99,19 @@ void didUpdateWidget(covariant TimelinePage oldWidget) {
   post: posts[index],
   onPostChanged: () {
     // PostCard already mutates the Post object in place (like, pin, ...)
-    // on the same object held in this list (Dart objects are references),
-    // so this only needs to trigger a rebuild — re-fetching the whole feed
-    // here was the bug: it threw the FutureBuilder into a loading spinner
-    // and discarded the just-applied optimistic update on every like.
+    // on the same object held in this list (Dart objects are references,
+    // and FutureBuilder keeps returning the same List from its cached
+    // snapshot until the future itself changes), so this only needs to
+    // trigger a rebuild — re-fetching the whole feed here was the bug:
+    // it threw the FutureBuilder into a loading spinner and discarded
+    // the just-applied optimistic update on every like.
+    setState(() {});
+  },
+  onPostUpdated: (updated) {
+    // Edit changes several `final` fields at once, so unlike like/pin it
+    // can't be mutated in place - swap the list entry for the new object.
+    final index = posts.indexWhere((p) => p.id == updated.id);
+    if (index != -1) posts[index] = updated;
     setState(() {});
   },
 );

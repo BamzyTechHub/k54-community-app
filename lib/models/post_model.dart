@@ -22,6 +22,12 @@ final String previewData;
 bool isFavorited;
 final bool canEdit;
 final bool canDelete;
+  /// No confirmed server field distinguishes "owner closed comments on
+  /// this post" from the general can_comment permission, so this is
+  /// purely local session state, set only after the user actually taps
+  /// the close/open-comments toggle — it will not reflect a closure that
+  /// happened in a previous session until the real field is identified.
+  bool commentsClosed;
 
   Post({
     required this.id,
@@ -45,6 +51,7 @@ final bool canDelete;
     required this.isFavorited,
     required this.canEdit,
     required this.canDelete,
+    this.commentsClosed = false,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {

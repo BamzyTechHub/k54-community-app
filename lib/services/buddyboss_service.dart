@@ -131,4 +131,28 @@ class BuddyBossService {
   );
 }
 
+  /// Updates an existing post's content/privacy. Mirrors createPost's body
+  /// fields since it's the same resource, just PUT to a specific id instead
+  /// of POST to the collection - response schema wasn't independently
+  /// captured, so it's parsed the same defensive way as pin/favorite.
+  Future<Post> updatePost({
+    required String activityId,
+    required String content,
+    String privacy = "public",
+  }) async {
+    final response = await _api.put(
+      "/buddyboss/v1/activity/$activityId",
+      {
+        "content": content,
+        "privacy": privacy,
+      },
+    );
+
+    return Post.fromBuddyBoss(response.data);
+  }
+
+  Future<void> deletePost(String activityId) async {
+    await _api.delete("/buddyboss/v1/activity/$activityId");
+  }
+
 }
