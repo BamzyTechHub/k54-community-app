@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'services/api_service.dart';
-import 'splash1.dart';
+import 'package:k54_mobile/core/services/api_service.dart';
+import 'package:k54_mobile/features/auth/screens/splash1.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

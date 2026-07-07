@@ -1,0 +1,196 @@
+import 'package:k54_mobile/features/activity/models/comment_model.dart';
+import 'package:k54_mobile/features/activity/models/post_model.dart';
+import 'package:k54_mobile/core/services/api_service.dart';
+
+class BuddyBossService {
+  final ApiService _api = ApiService.instance;
+
+  Future<Post> toggleFavorite(int activityId) async {
+  final response = await _api.post(
+    "/buddyboss/v1/activity/$activityId/favorite",
+    {},
+  );
+
+  return Post.fromBuddyBoss(response.data);
+}
+
+  /// Shares (reposts) an activity item. Unlike /favorite and /pin, this
+  /// deliberately does NOT parse the response as an updated Post — a share
+  /// endpoint most likely returns the newly-created repost item, not the
+  /// original post with an incremented count, and treating one as the
+  /// other risks silently overwriting the displayed post's real data with
+  /// the repost's. Callers should optimistically update their own local
+  /// share count and roll back on failure instead, same as a like/pin
+  /// would if their response shape were similarly uncertain.
+  Future<void> shareActivity(String activityId) async {
+    await _api.post(
+      "/buddyboss/v1/activity/$activityId/share",
+      {},
+    );
+  }
+
+  /// Toggles a post's pinned state. The endpoint's response shape hasn't
+  /// been independently captured (unlike /favorite, which is confirmed
+  /// working) — this assumes the same single-POST-toggle, full-Post-object
+  /// response pattern since it's the same /activity/{id}/{action} resource
+  /// shape. If that assumption is wrong, this will surface as a parsing
+  /// exception on the caller side, not a silent wrong result.
+  Future<Post> togglePin(int activityId) async {
+  final response = await _api.post(
+    "/buddyboss/v1/activity/$activityId/pin",
+    {},
+  );
+
+  return Post.fromBuddyBoss(response.data);
+}
+
+  /// Fetches comments for an activity post. Response schema wasn't
+  /// independently captured (unlike /favorite) — parses defensively via
+  /// [Comment.fromBuddyBoss], same discipline as the rest of this service.
+  Future<List<Comment>> getComments(String activityId, {int page = 1}) async {
+    final response = await _api.get(
+      "/buddyboss/v1/activity/$activityId/comment",
+      query: {"page": page},
+    );
+
+    final body = response.data;
+    final List raw = body is List
+        ? body
+        : (body["comments"] ?? body["data"] ?? body["results"] ?? []);
+
+    return raw
+        .whereType<Map>()
+        .map((c) => Comment.fromBuddyBoss(Map<String, dynamic>.from(c)))
+        .toList();
+  }
+
+  /// Posts a new comment, or a reply if [replyToCommentId] is given.
+  /// Replies target the parent comment's own id as the endpoint's {id} -
+  /// BuddyBoss's comment tree treats each comment as an activity item in
+  /// its own right, so commenting "on" a comment nests it underneath.
+  /// Unconfirmed against a live response - same caveat as getComments.
+  Future<Comment> postComment({
+    required String activityId,
+    required String content,
+    String? replyToCommentId,
+  }) async {
+    final targetId = replyToCommentId ?? activityId;
+    final response = await _api.post(
+      "/buddyboss/v1/activity/$targetId/comment",
+      {"content": content},
+    );
+
+    return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
+  }
+
+  /// Toggles a comment's like state via the same /favorite resource used
+  /// for posts - comments are activity items too, so this is the same
+  /// confirmed-working endpoint, just targeting a comment's id.
+  Future<Comment> toggleCommentFavorite(String commentId) async {
+    final response = await _api.post(
+      "/buddyboss/v1/activity/$commentId/favorite",
+      {},
+    );
+
+    return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
+  }
+
+  /// Fetches a page of the timeline. [page]/[perPage] follow the standard
+  /// WP REST pagination convention used elsewhere in this API (same as
+  /// getComments) - safe to infer since it's the platform's own convention,
+  /// not a guessed custom shape.
+  Future<List<Post>> getTimeline({
+    String? userId,
+    int page = 1,
+    int perPage = 10,
+  }) async {
+    final response = await _api.get(
+      "/buddyboss/v1/activity",
+      query: {
+        "page": page,
+        "per_page": perPage,
+        "user_id": ?userId,
+      },
+    );
+    final body = response.data;
+
+    final List activities = body is List
+        ? body
+        : (body["activities"] ??
+            body["activity"] ??
+            body["data"] ??
+            body["results"] ??
+            []);
+
+    return activities.map<Post>((item) => Post.fromBuddyBoss(item)).toList();
+  }
+
+  Future<void> createPost({
+  required String content,
+  String privacy = "public",
+}) async {
+  await _api.post(
+    "/buddyboss/v1/activity",
+    {
+      "content": content,
+      "type": "activity_update",
+      "component": "activity",
+      "privacy": privacy,
+    },
+  );
+}
+
+  /// Updates an existing post's content/privacy. Mirrors createPost's body
+  /// fields since it's the same resource, just PUT to a specific id instead
+  /// of POST to the collection - response schema wasn't independently
+  /// captured, so it's parsed the same defensive way as pin/favorite.
+  Future<Post> updatePost({
+    required String activityId,
+    required String content,
+    String privacy = "public",
+  }) async {
+    final response = await _api.put(
+      "/buddyboss/v1/activity/$activityId",
+      {
+        "content": content,
+        "privacy": privacy,
+      },
+    );
+
+    return Post.fromBuddyBoss(response.data);
+  }
+
+  Future<void> deletePost(String activityId) async {
+    await _api.delete("/buddyboss/v1/activity/$activityId");
+  }
+
+  /// Opens or closes commenting on a post. No live response for this
+  /// endpoint has been captured, so unlike pin/edit this doesn't parse or
+  /// trust a response body at all - it only confirms the call succeeded
+  /// (a non-2xx throws) and lets the caller flip its own local state, the
+  /// same no-response-trust strategy shareActivity uses for the same reason.
+  Future<void> toggleCommentsClosed(String activityId, bool close) async {
+    await _api.post(
+      "/buddyboss/v1/activity/$activityId/close-comments",
+      {"close": close},
+    );
+  }
+
+  /// Writes a single xprofile field's value for a user. [fieldId] must be
+  /// one of the numeric IDs confirmed via `GET /xprofile/groups?fetch_fields=1`
+  /// (e.g. 17 = Biography) - only plain textbox/textarea fields have a
+  /// confirmed write shape (`{"value": ...}`); selectbox/gender/datebox/
+  /// socialnetworks fields have NOT been confirmed against a live write and
+  /// should not be sent through this method until they are.
+  Future<void> updateProfileField({
+    required String userId,
+    required int fieldId,
+    required String value,
+  }) async {
+    await _api.put(
+      "/buddyboss/v1/xprofile/$fieldId/data/$userId",
+      {"value": value},
+    );
+  }
+
+}
