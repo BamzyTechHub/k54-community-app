@@ -176,4 +176,21 @@ class BuddyBossService {
     );
   }
 
+  /// Writes a single xprofile field's value for a user. [fieldId] must be
+  /// one of the numeric IDs confirmed via `GET /xprofile/groups?fetch_fields=1`
+  /// (e.g. 17 = Biography) - only plain textbox/textarea fields have a
+  /// confirmed write shape (`{"value": ...}`); selectbox/gender/datebox/
+  /// socialnetworks fields have NOT been confirmed against a live write and
+  /// should not be sent through this method until they are.
+  Future<void> updateProfileField({
+    required String userId,
+    required int fieldId,
+    required String value,
+  }) async {
+    await _api.put(
+      "/buddyboss/v1/xprofile/$fieldId/data/$userId",
+      {"value": value},
+    );
+  }
+
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screen/home_page.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'services/firestore_service.dart';
+import 'services/auth_service.dart';
+import 'services/buddyboss_service.dart';
 
 class ProfileSetup extends StatefulWidget {
   const ProfileSetup({super.key});
@@ -14,12 +14,11 @@ class _ProfileSetupState extends State<ProfileSetup> {
 
   // Text Controllers
 
-  final FirestoreService firestoreService =
-    FirestoreService();
+  final AuthService authService = AuthService();
+  final BuddyBossService buddyBossService = BuddyBossService();
 
-final FirebaseAuth auth =
-    FirebaseAuth.instance;
-    
+  bool isSaving = false;
+
   final TextEditingController usernameController =
       TextEditingController();
 
@@ -393,7 +392,7 @@ const SizedBox(height: 25),
 
 GestureDetector(
 
-  onTap:() async {
+  onTap: isSaving ? null : () async {
 
     // Username Validation
     if (usernameController.text.isEmpty) {
@@ -435,42 +434,58 @@ GestureDetector(
 
       return;
     }
-    // Success for now
-      try {
-  final user = auth.currentUser;
 
-  if (user == null) return;
+    setState(() => isSaving = true);
 
-  await firestoreService.saveUser(
-    uid: user.uid,
-    email: user.email ?? "",
-    username: usernameController.text.trim(),
-    field: selectedField!,
-    level: selectedLevel!,
-    gender: selectedGender!,
-    birthDate: selectedDate!,
-    bio: bioController.text.trim(),
-    facebook: facebookController.text.trim(),
-    linkedin: linkedinController.text.trim(),
-  );
+    try {
+      // Username is set at signup (registration's field_3) and isn't
+      // editable via xprofile, so it's validated above but never re-sent
+      // here. Field/Industry (31), Professional Status (5), Gender (18),
+      // and Birth Date (4) are confirmed xprofile fields, but the write
+      // payload shape BuddyBoss expects for their selectbox/gender/datebox
+      // types hasn't been confirmed against a live response - sending a
+      // guess risks a silent wrong value or a rejected write, so only the
+      // plain-text Biography field (17) is actually persisted here.
+      final user = await authService.getCurrentUser();
+      final userId = user.data["id"].toString();
 
-  if (!mounted) return;
+      await buddyBossService.updateProfileField(
+        userId: userId,
+        fieldId: 17,
+        value: bioController.text.trim(),
+      );
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const HomePage(),
-    ),
-  );
-} catch (e) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        "Failed to save profile: $e",
-      ),
-    ),
-  );
-}
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Bio saved. Field, Professional Level, Gender, Birth Date "
+            "and Social Links aren't syncing yet - we're still confirming "
+            "how the website expects those.",
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Failed to save profile: $e",
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
   },
   child: Container(
 
@@ -488,9 +503,18 @@ GestureDetector(
 
     ),
 
-    child: const Center(
+    child: Center(
 
-      child: Text(
+      child: isSaving
+          ? const SizedBox(
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+          : const Text(
 
         "Save and Continue",
 

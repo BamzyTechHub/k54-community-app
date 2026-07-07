@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Post {
   final String id;
   final String userId;
@@ -53,34 +51,6 @@ final bool canDelete;
     required this.canDelete,
     this.commentsClosed = false,
   });
-
-  factory Post.fromJson(Map<String, dynamic> json) {
-    return Post(
-      id: json["id"]?.toString() ?? "",
-      userId: json["userId"]?.toString() ?? "",
-      username: json["username"] ?? "",
-      profession: json["profession"] ?? "",
-      profileImage: json["profileImage"] ?? "",
-      caption: json["caption"] ?? "",
-      postImage: json["postImage"] ?? "",
-      likes: json["likes"] ?? 0,
-      comments: json["comments"] ?? 0,
-      shares: json["shares"] ?? 0,
-      createdAt: json["createdAt"] is Timestamp
-          ? (json["createdAt"] as Timestamp).toDate()
-          : DateTime.now(),
-      time: json["time"] ?? "",
-      canComment: json["canComment"] ?? false,
-      activityType: json["activityType"] ?? "",
-      profileLink: json["profileLink"] ?? "",
-      isPinned: json["isPinned"] ?? false,
-      privacy: json["privacy"] ?? "",
-      previewData: json["previewData"] ?? "",  
-isFavorited: json["favorited"] ?? false,
-      canEdit: json["can_edit"] ?? false,
-      canDelete: json["can_delete"] ?? false,
-    );
-  }
 
   factory Post.fromBuddyBoss(Map<String, dynamic> json) {
     String caption = "";
@@ -155,26 +125,4 @@ previewData: json["preview_data"]?.toString() ?? "",
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      "id": id,
-      "userId": userId,
-      "username": username,
-      "profession": profession,
-      "profileImage": profileImage,
-      "caption": caption,
-      "postImage": postImage,
-      "likes": likes,
-      "comments": comments,
-      "shares": shares,
-      "createdAt": Timestamp.fromDate(createdAt),
-      "time": time,
-      "canComment": canComment,
-      "activityType": activityType,
-      "profileLink": profileLink,
-      "isPinned": isPinned,
-      "privacy": privacy,
-      "previewData": previewData,
-    };
-  }
 }
