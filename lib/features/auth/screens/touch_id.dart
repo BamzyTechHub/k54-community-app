@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:k54_mobile/core/services/biometric_service.dart';
-import 'package:k54_mobile/features/home/screens/home_page.dart';
+import 'package:k54_mobile/features/auth/screens/touch_id_verified.dart';
 
 class TouchId extends StatelessWidget {
   const TouchId({super.key});
@@ -65,7 +65,7 @@ class TouchId extends StatelessWidget {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const HomePage(),
+          builder: (_) => const TouchIdVerified(),
         ),
       );
 
