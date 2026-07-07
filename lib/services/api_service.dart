@@ -68,11 +68,13 @@ class ApiService {
 
   Future<Response> post(
     String endpoint,
-    dynamic data,
-  ) async {
+    dynamic data, {
+    Options? options,
+  }) async {
     return await dio.post(
       endpoint,
       data: data,
+      options: options,
     );
   }
 

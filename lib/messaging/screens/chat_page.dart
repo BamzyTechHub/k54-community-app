@@ -1,118 +1,87 @@
 import 'package:flutter/material.dart';
 
-import '../models/chat_model.dart';
+import '../controllers/chat_controller.dart';
+import '../models/chat_message_model.dart';
 import '../models/message_thread_model.dart';
-import '../services/messaging_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String threadId;
   final MessageThread? thread; // optional preview data from the inbox list
 
-  const ChatPage({
-    super.key,
-    required this.threadId,
-    this.thread,
-  });
+  const ChatPage({super.key, required this.threadId, this.thread});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final MessagingService _messagingService = MessagingService();
+  late final ChatController _controller;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  MessageThread? _thread;
-  bool _loading = true;
-  bool _sending = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _thread = widget.thread;
-    _loadThread();
+    _controller = ChatController(threadId: widget.threadId, initialThread: widget.thread);
+    _controller.addListener(_onControllerChanged);
+    _init();
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  Future<void> _init() async {
+    await _controller.load();
+    // The page may have been popped while load() was awaiting its network
+    // call — ChatController guards its own notifyListeners() calls against
+    // that, but this method must not act any further either: touching
+    // _scrollController here would use it after dispose(), and calling
+    // startPolling() would start a new Timer.periodic on a controller
+    // that's already disposed and will never be disposed again.
+    if (!mounted) return;
+    _scrollToBottom();
+    _controller.startPolling(); // stops automatically in dispose()
   }
 
-  Future<void> _loadThread() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final thread = await _messagingService.getThread(widget.threadId);
-      if (!mounted) return;
-      setState(() {
-        _thread = thread;
-        _loading = false;
-      });
-      _scrollToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
+  void _onControllerChanged() {
+    setState(() {});
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
 
   Future<void> _send() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || _sending) return;
-
-    setState(() => _sending = true);
+    final text = _messageController.text;
+    if (text.trim().isEmpty) return;
     _messageController.clear();
-
-    try {
-      final sent = await _messagingService.sendReply(
-        threadId: widget.threadId,
-        message: text,
-      );
-      if (!mounted) return;
-      setState(() {
-        _thread = MessageThread(
-          id: _thread!.id,
-          otherUserId: _thread!.otherUserId,
-          otherUserName: _thread!.otherUserName,
-          otherUserAvatar: _thread!.otherUserAvatar,
-          lastMessagePreview: sent.message,
-          lastMessageDate: sent.date,
-          unreadCount: 0,
-          messages: [..._thread!.messages, sent],
-        );
-      });
+    final ok = await _controller.send(text);
+    if (ok) {
       _scrollToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to send: $e")),
-      );
-      _messageController.text = text; // give the text back on failure
-    } finally {
-      if (mounted) setState(() => _sending = false);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Failed to send: ${_controller.error}")));
+      _messageController.text = text;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final thread = _thread;
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose(); // cancels the polling timer
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    final thread = _controller.thread;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -140,15 +109,12 @@ class _ChatPageState extends State<ChatPage> {
           CircleAvatar(
             radius: 22,
             backgroundColor: Colors.grey.shade200,
-            backgroundImage: thread?.otherUserAvatar != null
-                ? NetworkImage(thread!.otherUserAvatar!)
-                : null,
+            backgroundImage:
+                thread?.otherUserAvatar != null ? NetworkImage(thread!.otherUserAvatar!) : null,
             child: thread?.otherUserAvatar == null
-                ? Text(
-                    (thread?.otherUserName.isNotEmpty ?? false)
-                        ? thread!.otherUserName[0].toUpperCase()
-                        : "?",
-                  )
+                ? Text((thread?.otherUserName.isNotEmpty ?? false)
+                    ? thread!.otherUserName[0].toUpperCase()
+                    : "?")
                 : null,
           ),
           const SizedBox(width: 10),
@@ -162,23 +128,24 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessages(MessageThread? thread) {
-    if (_loading && thread == null) {
+    if (_controller.loading && thread == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null && thread == null) {
+    if (_controller.error != null && thread == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("Couldn't load conversation.\n$_error", textAlign: TextAlign.center),
+            Text("Couldn't load conversation.\n${_controller.error}",
+                textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loadThread, child: const Text("Retry")),
+            ElevatedButton(onPressed: _controller.load, child: const Text("Retry")),
           ],
         ),
       );
     }
 
-    final messages = thread?.messages ?? [];
+    final messages = _controller.messages;
     if (messages.isEmpty) {
       return const Center(child: Text("Say hello 👋"));
     }
@@ -197,9 +164,7 @@ class _ChatPageState extends State<ChatPage> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
           color: message.isMe ? const Color(0xFF008000) : const Color(0xFFF3EFD9),
           borderRadius: BorderRadius.only(
@@ -214,10 +179,7 @@ class _ChatPageState extends State<ChatPage> {
           children: [
             Text(
               message.message,
-              style: TextStyle(
-                color: message.isMe ? Colors.white : Colors.black,
-                fontSize: 15,
-              ),
+              style: TextStyle(color: message.isMe ? Colors.white : Colors.black, fontSize: 15),
             ),
             const SizedBox(height: 5),
             Text(
@@ -262,13 +224,10 @@ class _ChatPageState extends State<ChatPage> {
           ),
           const SizedBox(width: 5),
           IconButton(
-            onPressed: _sending ? null : _send,
-            icon: _sending
+            onPressed: _controller.sending ? null : _send,
+            icon: _controller.sending
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.send, color: Color(0xFF008000)),
           ),
         ],

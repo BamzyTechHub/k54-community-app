@@ -4,6 +4,10 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Claude Code local tooling — captures, raw scratch data, machine-local settings.
+# Everything of lasting value from here is extracted into docs/api-audit/*.md.
+.claude/
 .atom/
 .build/
 .buildlog/

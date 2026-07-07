@@ -19,12 +19,23 @@ Future<Response> getMember(String userId) async {
     required String password,
   }) async {
     try {
+      // ApiService.initialize() restores a saved bearer token into the
+      // shared Dio instance's base headers on app start. That token must
+      // never ride along on the login request itself — it may be stale,
+      // expired, or otherwise invalid, and has no bearing on a fresh
+      // username/password exchange.
+      _api.dio.options.headers.remove("Authorization");
+
       final Response response = await _api.post(
         "/jwt-auth/v1/token",
         {
           "username": username,
           "password": password,
         },
+        options: Options(
+          contentType: Headers.jsonContentType,
+          headers: {"Accept": "application/json"},
+        ),
       );
 
       final token = response.data["token"];

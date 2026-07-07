@@ -5,6 +5,8 @@ import '../communication/communication_navigation.dart';
 import '../posts/create_post_page.dart';
 import '../widgets/bottom_navigation.dart';
 import '../notifications/notifications_page.dart';
+import '../messaging/repositories/messaging_repository.dart';
+import '../messaging/widgets/unread_badge.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,6 +17,27 @@ class HomePage extends StatefulWidget {
 
 
 class _HomePageState extends State<HomePage> {
+  // Stable key so the feed widget isn't torn down and remounted on every
+  // HomePage rebuild (it previously used ValueKey(DateTime.now()...),
+  // which forced a full remount + refetch on every rebuild).
+  final GlobalKey _timelineKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Warm the unread-messages badge so it's already correct the moment
+    // the home page renders, without requiring the user to open Messages.
+    _warmUnreadBadge();
+  }
+
+  Future<void> _warmUnreadBadge() async {
+    try {
+      await MessagingRepository.instance.refreshThreads();
+    } catch (_) {
+      // Non-fatal — badge just stays at 0 until the next successful refresh.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -183,12 +206,11 @@ IconButton(
 
   },
 
-  icon: const Icon(
-
-    Icons.chat_bubble_outline,
-
-    size: 28,
-
+  icon: const UnreadBadge(
+    child: Icon(
+      Icons.chat_bubble_outline,
+      size: 28,
+    ),
   ),
 
 ),
@@ -220,7 +242,7 @@ IconButton(
             // Feed
              Expanded(
   child: TimelinePage(
-    key: ValueKey(DateTime.now().millisecondsSinceEpoch),
+    key: _timelineKey,
   ),
 ),
 
