@@ -161,35 +161,128 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildBubble(ChatMessage message) {
     return Align(
       alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: message.isMe ? const Color(0xFF008000) : const Color(0xFFF3EFD9),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(message.isMe ? 18 : 0),
-            bottomRight: Radius.circular(message.isMe ? 0 : 18),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              message.message,
-              style: TextStyle(color: message.isMe ? Colors.white : Colors.black, fontSize: 15),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              "${message.date.hour.toString().padLeft(2, '0')}:${message.date.minute.toString().padLeft(2, '0')}",
-              style: TextStyle(
-                color: message.isMe ? Colors.white70 : Colors.grey,
-                fontSize: 11,
+      child: Column(
+        crossAxisAlignment: message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            decoration: BoxDecoration(
+              color: message.isMe ? const Color(0xFF008000) : const Color(0xFFF3EFD9),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(message.isMe ? 18 : 0),
+                bottomRight: Radius.circular(message.isMe ? 0 : 18),
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (message.hasAttachment) _buildAttachments(message),
+                if (message.message.isNotEmpty) ...[
+                  if (message.hasAttachment) const SizedBox(height: 8),
+                  Text(
+                    message.message,
+                    style: TextStyle(
+                      color: message.isMe ? Colors.white : Colors.black,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (message.favorited) ...[
+                      Icon(
+                        Icons.star,
+                        size: 13,
+                        color: message.isMe ? Colors.white70 : Colors.amber.shade700,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      "${message.date.hour.toString().padLeft(2, '0')}:${message.date.minute.toString().padLeft(2, '0')}",
+                      style: TextStyle(
+                        color: message.isMe ? Colors.white70 : Colors.grey,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (message.reactions.isNotEmpty) _buildReactions(message),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachments(ChatMessage message) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: message.files.map((file) {
+        if (file.isImage) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                file.thumbUrl.isNotEmpty ? file.thumbUrl : file.url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.insert_drive_file,
+                    size: 16, color: message.isMe ? Colors.white : Colors.black87),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    file.name.isNotEmpty ? file.name : "Attachment",
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: message.isMe ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildReactions(ChatMessage message) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Text(
+          message.reactions.join(" "),
+          style: const TextStyle(fontSize: 13),
         ),
       ),
     );
