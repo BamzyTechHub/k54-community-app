@@ -323,7 +323,25 @@ if (post.previewData.isNotEmpty)
     ),
     Expanded(
       child: TextButton.icon(
-        onPressed: () {},
+        onPressed: () async {
+  // Optimistic increment, no reliance on the response shape - see
+  // BuddyBossService.shareActivity's doc comment for why.
+  final previousShares = post.shares;
+  post.shares += 1;
+  onPostChanged?.call();
+
+  try {
+    await BuddyBossService().shareActivity(post.id);
+  } catch (e) {
+    post.shares = previousShares;
+    onPostChanged?.call();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't share post: $e")),
+      );
+    }
+  }
+},
         icon: const Icon(Icons.share_outlined),
         label: Text(post.shares.toString()),
       ),

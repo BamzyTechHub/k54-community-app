@@ -10,7 +10,7 @@ class Post {
   final String postImage;
   int likes;
   final int comments;
-  final int shares;
+  int shares;
   final DateTime createdAt;
   final String time;
 final bool canComment;

@@ -14,6 +14,21 @@ class BuddyBossService {
   return Post.fromBuddyBoss(response.data);
 }
 
+  /// Shares (reposts) an activity item. Unlike /favorite and /pin, this
+  /// deliberately does NOT parse the response as an updated Post — a share
+  /// endpoint most likely returns the newly-created repost item, not the
+  /// original post with an incremented count, and treating one as the
+  /// other risks silently overwriting the displayed post's real data with
+  /// the repost's. Callers should optimistically update their own local
+  /// share count and roll back on failure instead, same as a like/pin
+  /// would if their response shape were similarly uncertain.
+  Future<void> shareActivity(String activityId) async {
+    await _api.post(
+      "/buddyboss/v1/activity/$activityId/share",
+      {},
+    );
+  }
+
   /// Toggles a post's pinned state. The endpoint's response shape hasn't
   /// been independently captured (unlike /favorite, which is confirmed
   /// working) — this assumes the same single-POST-toggle, full-Post-object
