@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:k54_mobile/features/messaging/screens/messages_page.dart';
 import 'package:k54_mobile/features/messaging/widgets/unread_badge.dart';
 import 'package:k54_mobile/features/friends/screens/friends_page.dart';
-import 'package:k54_mobile/features/communication/screens/groups_page.dart';
+import 'package:k54_mobile/features/groups/screens/groups_page.dart';
 
 class CommunicationNavigation extends StatefulWidget {
   const CommunicationNavigation({super.key});
@@ -17,7 +17,7 @@ class _CommunicationNavigationState extends State<CommunicationNavigation> {
   final List<Widget> pages = [
     const MessagesPage(),
     const FriendsPage(),
-    const GroupsPage(),
+    const GroupsPage(embedded: true),
   ];
 
   @override
