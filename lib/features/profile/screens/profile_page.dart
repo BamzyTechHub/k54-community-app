@@ -108,6 +108,7 @@ ProfileStats(
      const SizedBox(height: 20),
 ProfileActions(
   isCurrentUser: widget.userId == null,
+  otherUserId: widget.userId,
 ),
 const SizedBox(height: 20),
 ProfileTabs(
