@@ -95,8 +95,9 @@ void didUpdateWidget(covariant TimelinePage oldWidget) {
             itemCount: posts.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
+               final post = posts[index];
                return PostCard(
-  post: posts[index],
+  post: post,
   onPostChanged: () {
     // PostCard already mutates the Post object in place (like, pin, ...)
     // on the same object held in this list (Dart objects are references,
@@ -112,6 +113,10 @@ void didUpdateWidget(covariant TimelinePage oldWidget) {
     // can't be mutated in place - swap the list entry for the new object.
     final index = posts.indexWhere((p) => p.id == updated.id);
     if (index != -1) posts[index] = updated;
+    setState(() {});
+  },
+  onPostDeleted: () {
+    posts.removeWhere((p) => p.id == post.id);
     setState(() {});
   },
 );

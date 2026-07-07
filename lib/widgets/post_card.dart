@@ -17,12 +17,16 @@ class PostCard extends StatelessWidget {
   /// final fields at once, so unlike like/pin it can't be mutated in place
   /// - the parent must swap this post for [updated] in its own list).
   final ValueChanged<Post>? onPostUpdated;
+  /// Fires after the post has been deleted server-side - the parent should
+  /// remove it from its own list.
+  final VoidCallback? onPostDeleted;
 
   const PostCard({
   super.key,
   required this.post,
   this.onPostChanged,
   this.onPostUpdated,
+  this.onPostDeleted,
 });
 
   @override
@@ -173,7 +177,40 @@ PopupMenuButton<String>(
         break;
 
       case "delete":
-        // TODO: Delete post
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("Delete post"),
+            content: const Text(
+              "This can't be undone. Delete this post?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) break;
+
+        try {
+          await BuddyBossService().deletePost(post.id);
+          onPostDeleted?.call();
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't delete post: $e")),
+            );
+          }
+        }
         break;
 
       case "pin":
