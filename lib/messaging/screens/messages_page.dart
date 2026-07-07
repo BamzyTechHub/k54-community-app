@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/inbox_controller.dart';
 import '../models/message_thread_model.dart';
+import '../repositories/messaging_repository.dart';
 import 'chat_page.dart';
 import 'new_conversation_page.dart';
 
@@ -141,6 +142,82 @@ class _MessagesPageState extends State<MessagesPage> {
     );
   }
 
+  Future<void> _showThreadActions(MessageThread thread) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(thread.isPinned ? Icons.push_pin_outlined : Icons.push_pin),
+              title: Text(thread.isPinned ? "Unpin conversation" : "Pin conversation"),
+              onTap: () => Navigator.pop(sheetContext, "pin"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text("Erase conversation", style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(sheetContext, "erase"),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == "pin") {
+      await _togglePin(thread);
+    } else if (action == "erase") {
+      await _confirmErase(thread);
+    }
+  }
+
+  Future<void> _togglePin(MessageThread thread) async {
+    try {
+      if (thread.isPinned) {
+        await MessagingRepository.instance.unpinThread(thread.id);
+      } else {
+        await MessagingRepository.instance.pinThread(thread.id);
+      }
+      _controller.load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't update pin: $e")));
+    }
+  }
+
+  Future<void> _confirmErase(MessageThread thread) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Erase conversation"),
+        content: Text(
+          "This can't be undone. Erase your conversation with ${thread.otherUserName}?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Erase", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await MessagingRepository.instance.eraseThread(thread.id);
+      _controller.load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't erase conversation: $e")));
+    }
+  }
+
   Widget _threadTile(MessageThread thread) {
     return InkWell(
       onTap: () async {
@@ -152,6 +229,7 @@ class _MessagesPageState extends State<MessagesPage> {
         );
         _controller.load();
       },
+      onLongPress: () => _showThreadActions(thread),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
@@ -173,12 +251,23 @@ class _MessagesPageState extends State<MessagesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    thread.otherUserName,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: thread.isUnread ? FontWeight.bold : FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      if (thread.isPinned) ...[
+                        Icon(Icons.push_pin, size: 13, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                      ],
+                      Flexible(
+                        child: Text(
+                          thread.otherUserName,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: thread.isUnread ? FontWeight.bold : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 3),
                   Text(

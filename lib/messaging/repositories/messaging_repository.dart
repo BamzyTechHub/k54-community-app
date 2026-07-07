@@ -93,7 +93,10 @@ class MessagingRepository {
     final envelope = response.data as Map<String, dynamic>;
 
     _threadsCache = _hydrate(envelope, userId)
-      ..sort((a, b) => b.lastMessageDate.compareTo(a.lastMessageDate));
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.lastMessageDate.compareTo(a.lastMessageDate);
+      });
 
     _recalculateUnread();
     return _threadsCache;
