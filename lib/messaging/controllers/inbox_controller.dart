@@ -10,6 +10,7 @@ class InboxController extends ChangeNotifier {
   String _query = "";
   bool loading = true;
   String? error;
+  bool _disposed = false;
 
   List<MessageThread> get threads {
     if (_query.trim().isEmpty) return _threads;
@@ -30,12 +31,23 @@ class InboxController extends ChangeNotifier {
       error = e.toString();
     } finally {
       loading = false;
-      notifyListeners();
+      // refreshThreads()'s await can outlive this controller if the
+      // Messages tab was left mid-fetch - same class of bug ChatController
+      // guards against, see its load() for the fuller explanation.
+      if (!_disposed) {
+        notifyListeners();
+      }
     }
   }
 
   void search(String query) {
     _query = query;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
