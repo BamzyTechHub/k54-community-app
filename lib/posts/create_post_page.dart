@@ -52,6 +52,36 @@ Future<void> pickImage() async {
     return;
   }
 
+  // Image upload isn't wired to the API yet (BuddyBoss's featured-image
+  // endpoint exists but its exact request shape hasn't been confirmed
+  // against a live response, so guessing at it here would risk a "fix"
+  // that silently fails). Until then, ask instead of dropping the image
+  // without telling the user — the previous behavior published text-only
+  // with no indication the photo never made it.
+  if (selectedImage != null) {
+    final proceedWithoutImage = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Photo not supported yet"),
+        content: const Text(
+          "Attaching a photo isn't available yet. Publishing now will "
+          "post your text only, without the image. Continue?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Publish Without Photo"),
+          ),
+        ],
+      ),
+    );
+    if (proceedWithoutImage != true) return;
+  }
+
   setState(() {
     isLoading = true;
   });
@@ -66,6 +96,7 @@ Future<void> pickImage() async {
 
     Navigator.pop(context, true);
   } catch (e) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(e.toString()),
