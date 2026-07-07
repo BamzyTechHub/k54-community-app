@@ -174,6 +174,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
   }
 
   void _startReply(Comment comment) {
+    if (widget.post.commentsClosed) return;
     setState(() => _replyingTo = comment);
     _composerFocus.requestFocus();
   }
@@ -199,9 +200,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
               _buildHeader(),
               const Divider(height: 1),
               Expanded(child: _buildBody()),
-              if (_replyingTo != null) _buildReplyBanner(),
+              if (!widget.post.commentsClosed && _replyingTo != null)
+                _buildReplyBanner(),
               const Divider(height: 1),
-              _buildComposer(),
+              widget.post.commentsClosed
+                  ? _buildClosedNotice()
+                  : _buildComposer(),
             ],
           ),
         ),
@@ -362,18 +366,20 @@ class _CommentsSheetState extends State<CommentsSheet> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      GestureDetector(
-                        onTap: () => _startReply(comment),
-                        child: Text(
-                          "Reply",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade600,
+                      if (!widget.post.commentsClosed) ...[
+                        const SizedBox(width: 14),
+                        GestureDetector(
+                          onTap: () => _startReply(comment),
+                          child: Text(
+                            "Reply",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -445,6 +451,25 @@ class _CommentsSheetState extends State<CommentsSheet> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: _brandGreen),
                   )
                 : const Icon(Icons.send_rounded, color: _brandGreen),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClosedNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.comments_disabled_outlined,
+              size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Text(
+            "Comments are closed for this post",
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
         ],
       ),

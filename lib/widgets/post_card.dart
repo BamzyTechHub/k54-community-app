@@ -229,6 +229,25 @@ PopupMenuButton<String>(
         }
         break;
 
+      case "close_comments":
+      case "open_comments":
+        final closing = value == "close_comments";
+        final previous = post.commentsClosed;
+        post.commentsClosed = closing;
+        onPostChanged?.call();
+        try {
+          await BuddyBossService().toggleCommentsClosed(post.id, closing);
+        } catch (e) {
+          post.commentsClosed = previous;
+          onPostChanged?.call();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't update comments: $e")),
+            );
+          }
+        }
+        break;
+
       case "report":
         showDialog<void>(
           context: context,
@@ -276,6 +295,12 @@ PopupMenuButton<String>(
         PopupMenuItem(
           value: post.isPinned ? "unpin" : "pin",
           child: Text(post.isPinned ? "Unpin" : "Pin to top"),
+        ),
+        PopupMenuItem(
+          value: post.commentsClosed ? "open_comments" : "close_comments",
+          child: Text(
+            post.commentsClosed ? "Open Comments" : "Close Comments",
+          ),
         ),
       ];
     }

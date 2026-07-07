@@ -155,4 +155,16 @@ class BuddyBossService {
     await _api.delete("/buddyboss/v1/activity/$activityId");
   }
 
+  /// Opens or closes commenting on a post. No live response for this
+  /// endpoint has been captured, so unlike pin/edit this doesn't parse or
+  /// trust a response body at all - it only confirms the call succeeded
+  /// (a non-2xx throws) and lets the caller flip its own local state, the
+  /// same no-response-trust strategy shareActivity uses for the same reason.
+  Future<void> toggleCommentsClosed(String activityId, bool close) async {
+    await _api.post(
+      "/buddyboss/v1/activity/$activityId/close-comments",
+      {"close": close},
+    );
+  }
+
 }
