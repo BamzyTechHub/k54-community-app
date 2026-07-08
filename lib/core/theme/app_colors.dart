@@ -26,4 +26,13 @@ class AppColors {
   static const transparentBlack = Color(0x00000000);
   static const greenOverlay = Color(0x4C578C77);
 
+  // Friends screen (measured directly from the K54 Figma file,
+  // node 50:1005 "Friends", 2026-07-08)
+  static const friendRowBackground = Color(0xFFF8F6F8);
+  static const friendRowBorder = Color(0xFFDBD8D8);
+  static const onlineIndicator = Color(0xFF46A046);
+  static const iconButtonBackground = Color(0xFFD9D9D9);
+  static const tabSelectedFill = Color(0xFFA9C4A9);
+  static const tabSelectedBorder = Color(0xFF588D78);
+
 }

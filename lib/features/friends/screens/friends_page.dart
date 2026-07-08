@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/friends/controllers/friends_controller.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 
-/// No Figma reference exists yet for Friends - this keeps the app's
-/// existing color/typography language (green/cream card palette used
-/// throughout Activity/Messaging/Groups) as a placeholder shell around
-/// real data and state, rather than inventing a new visual design. The
-/// Friends/Requests tab split is a structural necessity (BuddyBoss's
-/// confirmed friendship model has a pending state with a direction, see
-/// friendship_model.dart), not a stylistic choice - revisit the visuals
-/// once Figma is available.
+/// Friends list header + row layout match the K54 Figma file exactly
+/// (node 50:1005 "Friends", measured 2026-07-08): back button, title,
+/// search/video-call/call icons in the header; avatar + name + call/
+/// video/profile icons per row, no "Online/Offline" text, no per-row
+/// Add/Remove-friend button (Figma has none - remove is a long-press
+/// action instead, see _friendTile).
+///
+/// One deliberate deviation from the measured design: Figma shows a
+/// green online-status dot on every avatar, but the app has no real
+/// presence data source wired up yet (BuddyBoss's Heartbeat-based
+/// presence isn't implemented anywhere in this codebase) - showing it
+/// unconditionally would be the same "fake status" problem already
+/// fixed elsewhere in this app, so it's omitted until presence is real.
+///
+/// The Requests tab (incoming/outgoing) has no Figma screen at all -
+/// kept as a flagged, functional-but-unstyled addition since friend
+/// requests are a real backend concept, pending a real design.
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
 
@@ -21,9 +32,6 @@ class FriendsPage extends StatefulWidget {
 }
 
 class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStateMixin {
-  static const _brandGreen = Color(0xFF008000);
-  static const _cardBackground = Color(0xFFF5EFD9);
-
   late final TabController _tabController;
   final FriendsListController _listController = FriendsListController();
   final FriendsRequestsController _requestsController = FriendsRequestsController();
@@ -65,6 +73,12 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     );
   }
 
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$feature is coming soon")),
+    );
+  }
+
   Future<void> _accept(Friendship f) async {
     try {
       await FriendsRepository.instance.acceptRequest(f.id);
@@ -99,6 +113,22 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     );
   }
 
+  Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 24,
+        height: 24,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: AppColors.iconButtonBackground,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 16, color: AppColors.jetBlack),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pendingCount = _requestsController.incoming.length;
@@ -107,37 +137,50 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           child: Column(
             children: [
               Row(
                 children: [
-                  const Text(
+                  _iconButton(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
+                  const SizedBox(width: 10),
+                  Text(
                     "Friends",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.lato(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.jetBlack,
+                    ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      _listController.load();
-                      _requestsController.load();
-                    },
-                    icon: const Icon(Icons.refresh, size: 26),
+                  GestureDetector(
+                    onTap: () => _comingSoon("Search"),
+                    child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
+                  ),
+                  const SizedBox(width: 10),
+                  _iconButton(
+                    icon: Icons.videocam_outlined,
+                    onTap: () => _comingSoon("Group video call"),
+                  ),
+                  const SizedBox(width: 8),
+                  _iconButton(
+                    icon: Icons.call_outlined,
+                    onTap: () => _comingSoon("Group call"),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               TabBar(
                 controller: _tabController,
-                labelColor: _brandGreen,
+                labelColor: AppColors.green,
                 unselectedLabelColor: Colors.grey,
-                indicatorColor: _brandGreen,
+                indicatorColor: AppColors.green,
                 tabs: [
                   const Tab(text: "Friends"),
                   Tab(text: pendingCount > 0 ? "Requests ($pendingCount)" : "Requests"),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -179,7 +222,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
 
   Widget _buildFriendsBody() {
     if (_listController.loading && _listController.friends.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: _brandGreen));
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
     }
     if (_listController.error != null && _listController.friends.isEmpty) {
       return Center(
@@ -197,7 +240,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     final friends = _listController.friends;
     if (friends.isEmpty) {
       return RefreshIndicator(
-        color: _brandGreen,
+        color: AppColors.green,
         onRefresh: _listController.load,
         child: ListView(
           children: const [
@@ -209,7 +252,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     }
 
     return RefreshIndicator(
-      color: _brandGreen,
+      color: AppColors.green,
       onRefresh: _listController.load,
       child: ListView.builder(
         controller: _scrollController,
@@ -222,7 +265,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: _brandGreen),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
                 ),
               ),
             );
@@ -234,14 +277,20 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   }
 
   Widget _friendTile(Friendship f) {
-    return InkWell(
+    return GestureDetector(
       onTap: () => _openProfile(f.otherUserId),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      onLongPress: () => _removeFriendConfirm(f),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.friendRowBackground,
+          border: Border.all(color: AppColors.friendRowBorder),
+        ),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 28,
+              radius: 25,
               backgroundColor: Colors.grey.shade200,
               backgroundImage:
                   f.otherUserAvatar != null ? NetworkImage(f.otherUserAvatar!) : null,
@@ -249,16 +298,24 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                   ? Text(f.otherUserName.isNotEmpty ? f.otherUserName[0].toUpperCase() : "?")
                   : null,
             ),
-            const SizedBox(width: 15),
+            const SizedBox(width: 11),
             Expanded(
               child: Text(
                 f.otherUserName,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                style: GoogleFonts.lato(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.jetBlack,
+                ),
               ),
             ),
-            IconButton(
-              onPressed: () => _removeFriendConfirm(f),
-              icon: const Icon(Icons.person_remove_outlined, color: Colors.black54),
+            _iconButton(icon: Icons.call_outlined, onTap: () => _comingSoon("Voice calling")),
+            const SizedBox(width: 8),
+            _iconButton(icon: Icons.videocam_outlined, onTap: () => _comingSoon("Video calling")),
+            const SizedBox(width: 8),
+            _iconButton(
+              icon: Icons.person_outline,
+              onTap: () => _openProfile(f.otherUserId),
             ),
           ],
         ),
@@ -296,7 +353,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
 
   Widget _buildRequestsTab() {
     if (_requestsController.loading) {
-      return const Center(child: CircularProgressIndicator(color: _brandGreen));
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
     }
     if (_requestsController.error != null) {
       return Center(
@@ -317,7 +374,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
 
     if (incoming.isEmpty && outgoing.isEmpty) {
       return RefreshIndicator(
-        color: _brandGreen,
+        color: AppColors.green,
         onRefresh: _requestsController.load,
         child: ListView(
           children: const [
@@ -329,7 +386,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     }
 
     return RefreshIndicator(
-      color: _brandGreen,
+      color: AppColors.green,
       onRefresh: _requestsController.load,
       child: ListView(
         children: [
@@ -341,7 +398,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                   actions: [
                     TextButton(
                       onPressed: () => _accept(f),
-                      child: const Text("Accept", style: TextStyle(color: _brandGreen)),
+                      child: const Text("Accept", style: TextStyle(color: AppColors.green)),
                     ),
                     TextButton(
                       onPressed: () => _reject(f),
@@ -375,8 +432,8 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _cardBackground,
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.friendRowBackground,
+          border: Border.all(color: AppColors.friendRowBorder),
         ),
         child: Row(
           children: [
