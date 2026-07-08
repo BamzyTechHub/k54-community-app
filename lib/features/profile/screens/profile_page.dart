@@ -28,7 +28,7 @@ class _ProfilePageState extends State<ProfilePage> {
    String userName = "";
 String userEmail = "";
 String userTitle = "";
-String userImage = "assets/images/member1.png";
+String userImage = "";
 int followers = 0;
 int following = 0;
 int posts = 0;
@@ -95,7 +95,6 @@ Future loadUserData() async {
                 const SizedBox(height: 15),
                 ProfileHeader(
   userName: userName,
-  userEmail: userEmail,
   userTitle: userTitle,
   userImage: userImage,
 ),

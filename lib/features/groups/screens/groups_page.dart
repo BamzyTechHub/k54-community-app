@@ -228,14 +228,17 @@ class _GroupsPageState extends State<GroupsPage> {
             children: List.generate(tabs.length, (index) {
               final isSelected = selectedTab == index;
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 14),
                 child: GestureDetector(
                   onTap: () => setState(() => selectedTab = index),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.only(bottom: 6),
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected ? AppColors.groupCardAccent : Colors.transparent,
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isSelected ? AppColors.green : Colors.transparent,
+                          width: 2,
+                        ),
                       ),
                     ),
                     child: Text(

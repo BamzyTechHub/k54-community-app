@@ -9,6 +9,9 @@ class AppColors {
   // Brand colors
   static const green = Color(0xFF008000);
   static const gold = Color(0xFFAB8000);
+  static const brandGradient = LinearGradient(
+    colors: [green, gold, green],
+  );
 
   // Text colors
   static const jetBlack = Color(0xFF1A1A1A);

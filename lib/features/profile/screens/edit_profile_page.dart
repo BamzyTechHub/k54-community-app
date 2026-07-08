@@ -1,599 +1,291 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/profile/models/user_profile_model.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/features/profile/screens/change_profile_photo_page.dart';
+
+/// Matches the K54 Figma file's Edit Profile screen exactly (node
+/// 310:1875, rendered 2026-07-08).
+///
+/// Per the confirmed-backend-first rule: First/Last Name (xprofile fields
+/// 1/2) and Bio (field 17) are plain text fields with a confirmed write
+/// shape (PUT /xprofile/{fieldId}/data/{userId}, {"value": ...}) - same
+/// method already used successfully in profile_setup.dart - so Save
+/// writes them for real. Username is shown read-only (confirmed
+/// non-editable via xprofile - it's set once at signup). Email is shown
+/// read-only too; changing it has its own dedicated, already-existing
+/// flow (ChangeEmailPage), not this form. Field/Industry, Professional
+/// Status, Date of Birth, Gender (selectbox/gender/datebox types) and
+/// Instagram/LinkedIn (the composite "socialnetworks" field) all have
+/// confirmed field IDs but no confirmed write payload shape - shown and
+/// editable in the UI, validated, but not sent, exactly like
+/// profile_setup.dart's same limitation.
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
   @override
-  State<EditProfilePage> createState() =>
-      _EditProfilePageState();
+  State<EditProfilePage> createState() => _EditProfilePageState();
 }
 
-class _EditProfilePageState
-    extends State<EditProfilePage> {
+class _EditProfilePageState extends State<EditProfilePage> {
+  final AuthService _authService = AuthService();
+  final BuddyBossService _buddyBossService = BuddyBossService();
 
-  final TextEditingController nameController =
-    TextEditingController(
-  text: UserProfile.name,
-);
+  final nameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final emailController = TextEditingController();
+  final fieldController = TextEditingController();
+  final professionalStatusController = TextEditingController();
+  final dobController = TextEditingController();
+  final genderController = TextEditingController();
+  final bioController = TextEditingController();
+  final instagramController = TextEditingController();
+  final linkedinController = TextEditingController();
 
-final TextEditingController usernameController =
-    TextEditingController(
-  text: UserProfile.username,
-);
+  String? _userId;
+  String _avatarUrl = "";
+  bool _loading = true;
+  bool _saving = false;
 
-final TextEditingController bioController =
-    TextEditingController(
-  text: UserProfile.bio,
-);
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
 
-final TextEditingController phoneController =
-    TextEditingController(
-  text: UserProfile.phone,
-);
+  Future<void> _loadCurrentUser() async {
+    try {
+      final response = await _authService.getCurrentUser();
+      final user = response.data;
+      _userId = user["id"]?.toString();
+      nameController.text = user["name"] ?? "";
+      usernameController.text = user["user_login"] ?? "";
+      emailController.text = user["user_email"] ?? "";
+      _avatarUrl = user["avatar_urls"]?["full"] ?? user["avatar_urls"]?["thumb"] ?? "";
 
-final TextEditingController locationController =
-    TextEditingController(
-  text: UserProfile.location,
-);
+      final fields = user["xprofile"]?["groups"]?["1"]?["fields"];
+      fieldController.text = fields?["31"]?["value"]?["raw"] ?? "";
+      professionalStatusController.text = fields?["5"]?["value"]?["raw"] ?? "";
+      dobController.text = fields?["4"]?["value"]?["raw"] ?? "";
+      genderController.text = fields?["18"]?["value"]?["raw"] ?? "";
+      bioController.text = fields?["17"]?["value"]?["raw"] ?? "";
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't load profile: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
-final TextEditingController websiteController =
-    TextEditingController(
-  text: UserProfile.website,
-);
   @override
   void dispose() {
-
     nameController.dispose();
     usernameController.dispose();
+    emailController.dispose();
+    fieldController.dispose();
+    professionalStatusController.dispose();
+    dobController.dispose();
+    genderController.dispose();
     bioController.dispose();
-    phoneController.dispose();
-    locationController.dispose();
-    websiteController.dispose();
+    instagramController.dispose();
+    linkedinController.dispose();
     super.dispose();
+  }
 
+  Future<void> _save() async {
+    final userId = _userId;
+    if (userId == null || _saving) return;
+
+    setState(() => _saving = true);
+    try {
+      final fullName = nameController.text.trim();
+      final parts = fullName.split(" ");
+      final firstName = parts.isNotEmpty ? parts.first : "";
+      final lastName = parts.length > 1 ? parts.sublist(1).join(" ") : "";
+
+      await Future.wait([
+        _buddyBossService.updateProfileField(userId: userId, fieldId: 1, value: firstName),
+        _buddyBossService.updateProfileField(userId: userId, fieldId: 2, value: lastName),
+        _buddyBossService.updateProfileField(userId: userId, fieldId: 17, value: bioController.text.trim()),
+      ]);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Name and bio saved. Field, Professional Status, Date of Birth, "
+            "Gender, and social links aren't syncing yet - we're still "
+            "confirming how the website expects those.",
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't save profile: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _field({
+    required String label,
+    required TextEditingController controller,
+    bool enabled = true,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        maxLines: maxLines,
+        style: GoogleFonts.lato(fontSize: 15, color: AppColors.jetBlack),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.lato(color: Colors.grey.shade600),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
-
       backgroundColor: Colors.white,
-
       body: SafeArea(
-
         child: SingleChildScrollView(
-
-          child: Padding(
-
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 15,
-            ),
-
-            child: Column(
-
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              children: [
-
-                // ======================
-                // Header
-                // ======================
-
-                Row(
-
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Edit Your Profile",
+                    style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: Stack(
                   children: [
-
-                    IconButton(
-
-                      onPressed: () {
-
-                        Navigator.pop(context);
-
-                      },
-
-                      icon: const Icon(
-                        Icons.arrow_back,
-                      ),
-
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+                      child: _avatarUrl.isEmpty ? const Icon(Icons.person, size: 48) : null,
                     ),
-
-                    const SizedBox(width: 10),
-
-                    const Text(
-
-                      "Edit Profile",
-
-                      style: TextStyle(
-
-                        fontSize: 24,
-
-                        fontWeight:
-                            FontWeight.bold,
-
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ChangeProfilePhotoPage()),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.green, width: 1.5),
+                          ),
+                          child: const Icon(Icons.camera_alt, size: 16, color: AppColors.green),
+                        ),
                       ),
-
                     ),
-
                   ],
-
                 ),
-
-                const SizedBox(height: 30),
-
-                // ======================
-                // Profile Image
-                // ======================
-
-                Center(
-
-                  child: Column(
-
-                    children: [
-
-                      const CircleAvatar(
-
-                        radius: 55,
-
-                        backgroundImage:
-                            AssetImage(
-                          "assets/images/member1.png",
-                        ),
-
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      TextButton(
-
-                        onPressed: () {
-
-                          // Change photo later
-
-                        },
-
-                        child: const Text(
-                          "Change Photo",
-                        ),
-
-                      ),
-
-                    ],
-
+              ),
+              const SizedBox(height: 25),
+              _field(label: "Full Name", controller: nameController),
+              _field(label: "Username/Handle", controller: usernameController, enabled: false),
+              _field(label: "Email", controller: emailController, enabled: false),
+              _field(label: "Field/ Industry", controller: fieldController),
+              _field(label: "Professional Status", controller: professionalStatusController),
+              _field(label: "Date of Birth", controller: dobController),
+              _field(label: "Gender", controller: genderController),
+              _field(label: "Bio", controller: bioController, maxLines: 3),
+              _field(label: "Instagram", controller: instagramController),
+              _field(label: "LinkedIn", controller: linkedinController),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _saving ? null : _save,
+                child: Container(
+                  height: 55,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: AppColors.brandGradient,
                   ),
-
-                ),
-
-                const SizedBox(height: 25),
-
-                // ======================
-                // Full Name
-                // ======================
-
-                const Text(
-
-                  "Full Name",
-
-                  style: TextStyle(
-
-                    fontWeight:
-                        FontWeight.bold,
-
+                  child: Center(
+                    child: _saving
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Text(
+                            "Save Changes",
+                            style: GoogleFonts.lato(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
-
                 ),
-
-                const SizedBox(height: 8),
-
-                TextField(
-
-                  controller: nameController,
-
-                  decoration: InputDecoration(
-
-                    filled: true,
-
-                    fillColor:
-                        const Color(0xFFF5EFD9),
-
-                    border:
-                        OutlineInputBorder(
-
-                      borderRadius:
-                          BorderRadius.circular(
-                        15,
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  height: 55,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: AppColors.green, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "Cancel",
+                      style: GoogleFonts.lato(
+                        color: AppColors.green,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
-
                     ),
-
                   ),
-
                 ),
-
-                const SizedBox(height: 20),
-
-                // ======================
-                // Username
-                // ======================
-
-                const Text(
-
-                  "Username",
-
-                  style: TextStyle(
-
-                    fontWeight:
-                        FontWeight.bold,
-
-                  ),
-
-                ),
-
-                const SizedBox(height: 8),
-
-                TextField(
-
-                  controller:
-                      usernameController,
-
-                  decoration: InputDecoration(
-
-                    filled: true,
-
-                    fillColor:
-                        const Color(0xFFF5EFD9),
-
-                    border:
-                        OutlineInputBorder(
-
-                      borderRadius:
-                          BorderRadius.circular(
-                        15,
-                      ),
-
-                    ),
-
-                  ),
-
-                ),
-
-                const SizedBox(height: 20),
-
-// ======================
-// Bio
-// ======================
-
-const Text(
-
-  "Bio",
-
-  style: TextStyle(
-
-    fontWeight: FontWeight.bold,
-
-  ),
-
-),
-
-const SizedBox(height: 8),
-
-TextField(
-
-  maxLines: 3,
-
-  controller: bioController,
-
-  decoration: InputDecoration(
-
-    hintText:
-        "Tell people about yourself...",
-
-    filled: true,
-
-    fillColor:
-        const Color(0xFFF5EFD9),
-
-    border: OutlineInputBorder(
-
-      borderRadius:
-          BorderRadius.circular(15),
-
-    ),
-
-  ),
-
-),
-
-const SizedBox(height: 20),
-
-// ======================
-// Phone Number
-// ======================
-
-const Text(
-
-  "Phone Number",
-
-  style: TextStyle(
-
-    fontWeight: FontWeight.bold,
-
-  ),
-
-),
-
-const SizedBox(height: 8),
-
-TextField(
-  controller: phoneController,
-  keyboardType: TextInputType.phone,
-
-  decoration: InputDecoration(
-
-    hintText: "+234",
-
-    filled: true,
-
-    fillColor:
-        const Color(0xFFF5EFD9),
-
-    border: OutlineInputBorder(
-
-      borderRadius:
-          BorderRadius.circular(15),
-
-    ),
-
-  ),
-
-),
-
-const SizedBox(height: 20),
-
-// ======================
-// Location
-// ======================
-
-const Text(
-
-  "Location",
-
-  style: TextStyle(
-
-    fontWeight: FontWeight.bold,
-
-  ),
-
-),
-
-const SizedBox(height: 8),
-
-TextField(
-
-  controller: locationController,
-  decoration: InputDecoration(
-
-    hintText: "Lagos, Nigeria",
-
-    filled: true,
-
-    fillColor:
-        const Color(0xFFF5EFD9),
-
-    border: OutlineInputBorder(
-
-      borderRadius:
-          BorderRadius.circular(15),
-
-    ),
-
-  ),
-
-),
-
-const SizedBox(height: 20),
-
-// ======================
-// Website
-// ======================
-
-const Text(
-
-  "Website",
-
-  style: TextStyle(
-
-    fontWeight: FontWeight.bold,
-
-  ),
-
-),
-
-const SizedBox(height: 8),
-
-TextField(
-
-  controller: websiteController,
-  decoration: InputDecoration(
-
-    hintText:
-        "https://yourwebsite.com",
-
-    filled: true,
-
-    fillColor:
-        const Color(0xFFF5EFD9),
-
-    border: OutlineInputBorder(
-
-      borderRadius:
-          BorderRadius.circular(15),
-
-    ),
-
-  ),
-
-),
-
-const SizedBox(height: 30),
-      // ======================
-// Action Buttons
-// ======================
-
-Row(
-
-  children: [
-
-    // Discard Button
-
-    Expanded(
-
-      child: OutlinedButton(
-
-        onPressed: () {
-
-          Navigator.pop(context);
-
-        },
-
-        style: OutlinedButton.styleFrom(
-
-          minimumSize: const Size(
-            double.infinity,
-            55,
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
-
-          side: const BorderSide(
-            color: Color(0xFF008000),
-          ),
-
-          shape: RoundedRectangleBorder(
-
-            borderRadius:
-                BorderRadius.circular(15),
-
-          ),
-
         ),
-
-        child: const Text(
-
-          "Discard",
-
-          style: TextStyle(
-
-            color: Color(0xFF008000),
-
-            fontWeight:
-                FontWeight.bold,
-
-          ),
-
-        ),
-
       ),
-
-    ),
-
-    const SizedBox(width: 15),
-
-    // Save Button
-
-    Expanded(
-
-      child: ElevatedButton(
-
-       onPressed: () {
-
-  UserProfile.name =
-      nameController.text;
-
-  UserProfile.username =
-      usernameController.text;
-
-  UserProfile.bio =
-      bioController.text;
-
-  UserProfile.phone =
-      phoneController.text;
-
-  UserProfile.location =
-      locationController.text;
-
-  UserProfile.website =
-      websiteController.text;
-
-  ScaffoldMessenger.of(context)
-      .showSnackBar(
-    const SnackBar(
-      content: Text(
-        "Profile updated successfully",
-      ),
-    ),
-  );
-
-  Navigator.pop(context);
-},
-
-        style: ElevatedButton.styleFrom(
-
-          backgroundColor:
-              const Color(0xFF008000),
-
-          minimumSize: const Size(
-            double.infinity,
-            55,
-          ),
-
-          shape: RoundedRectangleBorder(
-
-            borderRadius:
-                BorderRadius.circular(15),
-
-          ),
-
-        ),
-
-        child: const Text(
-
-          "Save Changes",
-
-          style: TextStyle(
-
-            color: Colors.white,
-
-            fontWeight:
-                FontWeight.bold,
-
-          ),
-
-        ),
-
-      ),
-
-    ),
-
-  ],
-
-),
-
-const SizedBox(height: 30),
-
-              ],
-
-            ),
-
-          ),
-
-        ),
-
-      ),
-
     );
-
   }
-
 }
