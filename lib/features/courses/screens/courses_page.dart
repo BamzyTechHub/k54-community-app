@@ -112,9 +112,12 @@ Row(
 
   children: [
 
-    const Icon(
-      Icons.arrow_back,
-      size: 28,
+    IconButton(
+      onPressed: () => Navigator.pop(context),
+      icon: const Icon(
+        Icons.arrow_back,
+        size: 28,
+      ),
     ),
 
     const SizedBox(width: 12),
@@ -261,6 +264,12 @@ ClipRRect(
     width: double.infinity,
 
     fit: BoxFit.cover,
+
+    errorBuilder: (_, _, _) => Container(
+      height: 90,
+      color: Colors.grey.shade300,
+      child: const Icon(Icons.school_outlined, color: Colors.grey),
+    ),
 
   ),
 
@@ -443,19 +452,7 @@ Padding(
       borderRadius:
           BorderRadius.circular(20),
 
-      gradient: const LinearGradient(
-
-        colors: [
-
-          Color(0xFF008000),
-
-          Color(0xFFAB8000),
-
-          Color(0xFF008000),
-
-        ],
-
-      ),
+      color: const Color(0xFF6C9B6E),
 
     ),
 
