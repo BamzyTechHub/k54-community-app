@@ -35,4 +35,10 @@ class AppColors {
   static const tabSelectedFill = Color(0xFFA9C4A9);
   static const tabSelectedBorder = Color(0xFF588D78);
 
+  // Groups screens (measured directly from the K54 Figma file,
+  // nodes 50:1523 "Groups" and 87:76 "GROUPS", 2026-07-08)
+  static const groupCardBackground = Color(0xFFE3DAC1);
+  static const groupCardAccent = Color(0xFF588D78);
+  static const groupMutedText = Color(0xFF515050);
+
 }
