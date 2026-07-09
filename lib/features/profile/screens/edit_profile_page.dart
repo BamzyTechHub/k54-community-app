@@ -5,6 +5,7 @@ import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/profile/screens/change_profile_photo_page.dart';
+import 'package:k54_mobile/features/profile/widgets/profile_fields_form.dart';
 
 /// Matches the K54 Figma file's Edit Profile screen exactly (node
 /// 310:1875, rendered 2026-07-08).
@@ -12,16 +13,14 @@ import 'package:k54_mobile/features/profile/screens/change_profile_photo_page.da
 /// Per the confirmed-backend-first rule: First/Last Name (xprofile fields
 /// 1/2) and Bio (field 17) are plain text fields with a confirmed write
 /// shape (PUT /xprofile/{fieldId}/data/{userId}, {"value": ...}) - same
-/// method already used successfully in profile_setup.dart - so Save
-/// writes them for real. Username is shown read-only (confirmed
-/// non-editable via xprofile - it's set once at signup). Email is shown
-/// read-only too; changing it has its own dedicated, already-existing
-/// flow (ChangeEmailPage), not this form. Field/Industry, Professional
-/// Status, Date of Birth, Gender (selectbox/gender/datebox types) and
-/// Instagram/LinkedIn (the composite "socialnetworks" field) all have
-/// confirmed field IDs but no confirmed write payload shape - shown and
-/// editable in the UI, validated, but not sent, exactly like
-/// profile_setup.dart's same limitation.
+/// method also used by ProfileSetup - so Save writes them for real.
+/// Username is shown read-only (confirmed non-editable via xprofile -
+/// it's set once at signup). Email is shown read-only too; changing it
+/// has its own dedicated, already-existing flow (ChangeEmailPage), not
+/// this form. The rest of the fields (Field/Industry, Professional
+/// Status, Date of Birth, Gender, social links) are the shared
+/// [ProfileFieldsForm] also used by ProfileSetup - see that widget's doc
+/// comment for why they're shown/editable but not yet sent.
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
@@ -36,13 +35,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final nameController = TextEditingController();
   final usernameController = TextEditingController();
   final emailController = TextEditingController();
-  final fieldController = TextEditingController();
-  final professionalStatusController = TextEditingController();
-  final dobController = TextEditingController();
-  final genderController = TextEditingController();
-  final bioController = TextEditingController();
-  final instagramController = TextEditingController();
-  final linkedinController = TextEditingController();
+  final _fields = ProfileFieldsData();
 
   String? _userId;
   String _avatarUrl = "";
@@ -66,11 +59,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       _avatarUrl = user["avatar_urls"]?["full"] ?? user["avatar_urls"]?["thumb"] ?? "";
 
       final fields = user["xprofile"]?["groups"]?["1"]?["fields"];
-      fieldController.text = fields?["31"]?["value"]?["raw"] ?? "";
-      professionalStatusController.text = fields?["5"]?["value"]?["raw"] ?? "";
-      dobController.text = fields?["4"]?["value"]?["raw"] ?? "";
-      genderController.text = fields?["18"]?["value"]?["raw"] ?? "";
-      bioController.text = fields?["17"]?["value"]?["raw"] ?? "";
+      _fields.fieldController.text = fields?["31"]?["value"]?["raw"] ?? "";
+      _fields.professionalStatusController.text = fields?["5"]?["value"]?["raw"] ?? "";
+      _fields.genderController.text = fields?["18"]?["value"]?["raw"] ?? "";
+      _fields.bioController.text = fields?["17"]?["value"]?["raw"] ?? "";
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -86,13 +78,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     nameController.dispose();
     usernameController.dispose();
     emailController.dispose();
-    fieldController.dispose();
-    professionalStatusController.dispose();
-    dobController.dispose();
-    genderController.dispose();
-    bioController.dispose();
-    instagramController.dispose();
-    linkedinController.dispose();
+    _fields.dispose();
     super.dispose();
   }
 
@@ -110,7 +96,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await Future.wait([
         _buddyBossService.updateProfileField(userId: userId, fieldId: 1, value: firstName),
         _buddyBossService.updateProfileField(userId: userId, fieldId: 2, value: lastName),
-        _buddyBossService.updateProfileField(userId: userId, fieldId: 17, value: bioController.text.trim()),
+        _buddyBossService.updateProfileField(userId: userId, fieldId: 17, value: _fields.bioController.text.trim()),
       ]);
 
       if (!mounted) return;
@@ -139,14 +125,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
     required String label,
     required TextEditingController controller,
     bool enabled = true,
-    int maxLines = 1,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         enabled: enabled,
-        maxLines: maxLines,
         style: GoogleFonts.lato(fontSize: 15, color: AppColors.jetBlack),
         decoration: InputDecoration(
           labelText: label,
@@ -224,13 +208,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               _field(label: "Full Name", controller: nameController),
               _field(label: "Username/Handle", controller: usernameController, enabled: false),
               _field(label: "Email", controller: emailController, enabled: false),
-              _field(label: "Field/ Industry", controller: fieldController),
-              _field(label: "Professional Status", controller: professionalStatusController),
-              _field(label: "Date of Birth", controller: dobController),
-              _field(label: "Gender", controller: genderController),
-              _field(label: "Bio", controller: bioController, maxLines: 3),
-              _field(label: "Instagram", controller: instagramController),
-              _field(label: "LinkedIn", controller: linkedinController),
+              ProfileFieldsForm(data: _fields),
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: _saving ? null : _save,

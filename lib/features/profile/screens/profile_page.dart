@@ -8,6 +8,7 @@ import 'package:k54_mobile/features/profile/widgets/profile_header.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_stats.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_actions.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_tabs.dart';
+import 'package:k54_mobile/features/profile/widgets/profile_placeholder_tabs.dart';
 import 'package:k54_mobile/features/activity/screens/timeline_page.dart';
 import 'package:k54_mobile/features/groups/screens/groups_page.dart';
 import 'package:k54_mobile/features/live_video/screens/go_live_page.dart';
@@ -182,23 +183,6 @@ Widget _liveVideoTab(BuildContext context) {
   );
 }
 
-Widget _comingSoonTab(String label) {
-  return Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(25),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF5EFD9),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Center(
-      child: Text(
-        "$label Coming Soon",
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    ),
-  );
-}
-
 Future loadUserData() async {
   try {
     final response = widget.userId == null
@@ -338,10 +322,10 @@ if (selectedTab == 3)
     height: _embeddedTabHeight(context),
     child: GroupsPage(embedded: true),
   ),
-if (selectedTab == 4) _comingSoonTab("Courses"),
-if (selectedTab == 5) _comingSoonTab("Documents"),
-if (selectedTab == 6) _comingSoonTab("Quizzes"),
-if (selectedTab == 7) _comingSoonTab("Orders"),
+if (selectedTab == 4) const ProfileCoursesTab(),
+if (selectedTab == 5) const ProfileDocumentsTab(),
+if (selectedTab == 6) const ProfileEmptyTab(icon: Icons.quiz_outlined, message: "No quizzes yet"),
+if (selectedTab == 7) const ProfileOrdersTab(),
 const SizedBox(height: 20),
               ],
             ),
