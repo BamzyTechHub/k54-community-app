@@ -69,11 +69,18 @@ class _NewConversationPageState extends State<NewConversationPage> {
       // creating a duplicate.
       final thread = await _repo.findOrCreateThreadWith(otherUserId: memberId);
       if (!mounted) return;
-      final result = await Navigator.pushReplacement(
+      // pushReplacement completes the *original* push (awaited by
+      // MessagesPage) immediately with `result` - it does not wait for
+      // ChatPage to later be popped. Passing `result: true` here is what
+      // actually triggers MessagesPage's inbox refresh; the previous code
+      // awaited this call and tried to pop afterwards, which never ran
+      // (this page's State is already disposed by the time pushReplacement
+      // itself would resolve).
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => ChatPage(threadId: thread.id, thread: thread)),
+        result: true,
       );
-      if (mounted) Navigator.pop(context, result ?? true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

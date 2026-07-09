@@ -108,4 +108,20 @@ Future<Response> getMember(String userId) async {
   Future<Response> getCurrentUser() async {
     return await _api.get("/buddyboss/v1/members/me");
   }
+
+  /// Updates the logged-in account's email via WordPress core's own REST
+  /// API (POST /wp/v2/users/me, field "email") - confirmed via the
+  /// official REST API Handbook (developer.wordpress.org/rest-api/
+  /// reference/users/), not a BuddyBoss-specific or guessed endpoint.
+  /// WordPress core itself is what sends the confirmation link to the
+  /// old address before applying the change, not this app.
+  Future<void> updateEmail(String newEmail) async {
+    await _api.post("/wp/v2/users/me", {"email": newEmail});
+  }
+
+  /// Updates the logged-in account's password via the same confirmed
+  /// WordPress core endpoint (field "password").
+  Future<void> updatePassword(String newPassword) async {
+    await _api.post("/wp/v2/users/me", {"password": newPassword});
+  }
 }

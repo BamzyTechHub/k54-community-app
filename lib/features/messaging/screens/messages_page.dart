@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/messaging/controllers/inbox_controller.dart';
 import 'package:k54_mobile/features/messaging/models/message_thread_model.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
 import 'package:k54_mobile/features/messaging/screens/new_conversation_page.dart';
 
+/// Header matches the K54 Figma file's Messages screen exactly (node
+/// 43:104): back button, title, then search/video_call/call/more_vert
+/// icons - the same header component reused on Friends and Groups. Found
+/// during the 2026-07-08 final parity pass to have drifted onto an older
+/// large-title layout; rebuilt here. The floating "new conversation"
+/// button and the inline search field are both real, working
+/// functionality Figma's icon-only row doesn't visually account for, so
+/// (per the same precedent used for Profile's Message button) they're
+/// kept rather than removed to match the mockup literally.
 class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
 
@@ -44,19 +55,43 @@ class _MessagesPageState extends State<MessagesPage> {
     return "${date.day}/${date.month}/${date.year}";
   }
 
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$feature is coming soon")),
+    );
+  }
+
+  Future<void> _newConversation() async {
+    final started = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const NewConversationPage()),
+    );
+    if (started == true) _controller.load();
+  }
+
+  Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 24,
+        height: 24,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: AppColors.iconButtonBackground,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 16, color: AppColors.jetBlack),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF008000),
-        onPressed: () async {
-          final started = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const NewConversationPage()),
-          );
-          if (started == true) _controller.load();
-        },
+        onPressed: _newConversation,
         child: const Icon(Icons.edit, color: Colors.white),
       ),
       body: SafeArea(
@@ -66,18 +101,36 @@ class _MessagesPageState extends State<MessagesPage> {
             children: [
               Row(
                 children: [
-                  const Text(
+                  _iconButton(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
+                  const SizedBox(width: 10),
+                  Text(
                     "Messages",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.lato(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.jetBlack,
+                    ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed: _controller.load,
-                    icon: const Icon(Icons.refresh, size: 26),
+                  GestureDetector(
+                    onTap: () => _comingSoon("Search"),
+                    child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
+                  ),
+                  const SizedBox(width: 10),
+                  _iconButton(
+                    icon: Icons.videocam_outlined,
+                    onTap: () => _comingSoon("Group video call"),
+                  ),
+                  const SizedBox(width: 8),
+                  _iconButton(icon: Icons.call_outlined, onTap: () => _comingSoon("Group call")),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _comingSoon("More options"),
+                    child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               TextField(
                 controller: _searchController,
                 onChanged: _controller.search,

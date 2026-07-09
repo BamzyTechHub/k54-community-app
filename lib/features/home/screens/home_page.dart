@@ -5,8 +5,10 @@ import 'package:k54_mobile/features/communication/communication_navigation.dart'
 import 'package:k54_mobile/features/activity/screens/create_post_page.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 import 'package:k54_mobile/features/notifications/screens/notifications_page.dart';
+import 'package:k54_mobile/features/notifications/repositories/notifications_repository.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
-import 'package:k54_mobile/features/messaging/widgets/unread_badge.dart';
+import 'package:k54_mobile/core/widgets/unread_badge.dart';
+import 'package:k54_mobile/features/search/screens/search_results_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,8 +27,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Warm the unread-messages badge so it's already correct the moment
-    // the home page renders, without requiring the user to open Messages.
+    // Warm the unread-messages/notifications badges so they're already
+    // correct the moment the home page renders, without requiring the
+    // user to open Messages/Notifications first.
     _warmUnreadBadge();
   }
 
@@ -35,6 +38,11 @@ class _HomePageState extends State<HomePage> {
       await MessagingRepository.instance.refreshThreads();
     } catch (_) {
       // Non-fatal — badge just stays at 0 until the next successful refresh.
+    }
+    try {
+      await NotificationsRepository.instance.getNotifications();
+    } catch (_) {
+      // Non-fatal — same reasoning as above.
     }
   }
 
@@ -107,9 +115,27 @@ class _HomePageState extends State<HomePage> {
                       ),
 
 
-                      child: const TextField(
+                      child: TextField(
 
-                        decoration: InputDecoration(
+                        readOnly: true,
+
+                        onTap: () {
+
+                          Navigator.push(
+
+                            context,
+
+                            MaterialPageRoute(
+
+                              builder: (context) => const SearchResultsPage(),
+
+                            ),
+
+                          );
+
+                        },
+
+                        decoration: const InputDecoration(
 
                           hintText: "Search",
 
@@ -176,12 +202,12 @@ IconButton(
 
   },
 
-  icon: const Icon(
-
-    Icons.notifications_outlined,
-
-    size: 28,
-
+  icon: UnreadBadge(
+    count: NotificationsRepository.instance.unreadCount,
+    child: const Icon(
+      Icons.notifications_outlined,
+      size: 28,
+    ),
   ),
 
 ),
@@ -206,8 +232,9 @@ IconButton(
 
   },
 
-  icon: const UnreadBadge(
-    child: Icon(
+  icon: UnreadBadge(
+    count: MessagingRepository.instance.unreadCount,
+    child: const Icon(
       Icons.chat_bubble_outline,
       size: 28,
     ),

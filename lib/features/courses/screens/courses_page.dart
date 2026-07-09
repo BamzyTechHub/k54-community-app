@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/utils/nav.dart';
+import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 
 
@@ -113,7 +115,7 @@ Row(
   children: [
 
     IconButton(
-      onPressed: () => Navigator.pop(context),
+      onPressed: () => goHome(context),
       icon: const Icon(
         Icons.arrow_back,
         size: 28,
@@ -212,9 +214,9 @@ Expanded(
     itemCount: courses.length,
 
     gridDelegate:
-        const SliverGridDelegateWithFixedCrossAxisCount(
+        SliverGridDelegateWithFixedCrossAxisCount(
 
-      crossAxisCount: 2,
+      crossAxisCount: Responsive.gridColumns(context),
 
       crossAxisSpacing: 15,
 
@@ -416,14 +418,18 @@ Padding(
 
       const SizedBox(width: 6),
 
-      Text(
+      Expanded(
+        child: Text(
 
-        "By ${course["instructor"]}",
+          "By ${course["instructor"]}",
 
-        style: const TextStyle(
-          fontSize: 12,
+          overflow: TextOverflow.ellipsis,
+
+          style: const TextStyle(
+            fontSize: 12,
+          ),
+
         ),
-
       ),
 
     ],

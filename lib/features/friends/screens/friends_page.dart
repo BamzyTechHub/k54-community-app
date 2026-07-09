@@ -167,6 +167,11 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                     icon: Icons.call_outlined,
                     onTap: () => _comingSoon("Group call"),
                   ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _comingSoon("More options"),
+                    child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),

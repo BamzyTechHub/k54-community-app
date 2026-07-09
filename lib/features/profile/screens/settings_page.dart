@@ -3,9 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/features/auth/screens/login.dart';
 import 'package:k54_mobile/features/profile/screens/change_email_page.dart';
 import 'package:k54_mobile/features/profile/screens/change_password_page.dart';
+import 'package:k54_mobile/features/profile/screens/deactivate_account_page.dart';
+import 'package:k54_mobile/features/profile/screens/logout_page.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_actions.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_header.dart';
 
@@ -57,13 +58,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _logout() async {
-    await AuthService().logout();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
+  void _logout() {
+    Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const Login()),
-      (route) => false,
+      MaterialPageRoute(builder: (_) => const LogoutPage()),
     );
   }
 
@@ -159,7 +157,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       _tile(
                         icon: Icons.person_off_outlined,
                         title: "Deactivate Account",
-                        onTap: () => _comingSoon("Deactivating your account"),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DeactivateAccountPage()),
+                        ),
                       ),
                     ]),
                     _sectionTitle("Security"),

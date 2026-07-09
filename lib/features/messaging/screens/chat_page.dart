@@ -118,9 +118,12 @@ class _ChatPageState extends State<ChatPage> {
                 : null,
           ),
           const SizedBox(width: 10),
-          Text(
-            thread?.otherUserName ?? "Loading...",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Expanded(
+            child: Text(
+              thread?.otherUserName ?? "Loading...",
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

@@ -1,24 +1,26 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 
 /// Wraps any icon with a small red unread-count badge that updates
-/// automatically whenever MessagingRepository.unreadCount changes —
-/// no manual refresh calls needed at the call site.
+/// automatically whenever [count] changes - no manual refresh calls
+/// needed at the call site. Generic (moved out of the messaging feature)
+/// so it can badge any unread-count source - messages, notifications, etc.
 class UnreadBadge extends StatelessWidget {
   final Widget child;
+  final ValueListenable<int> count;
 
-  const UnreadBadge({super.key, required this.child});
+  const UnreadBadge({super.key, required this.child, required this.count});
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
-      valueListenable: MessagingRepository.instance.unreadCount,
-      builder: (context, count, _) {
+      valueListenable: count,
+      builder: (context, value, _) {
         return Stack(
           clipBehavior: Clip.none,
           children: [
             child,
-            if (count > 0)
+            if (value > 0)
               Positioned(
                 right: -4,
                 top: -2,
@@ -31,7 +33,7 @@ class UnreadBadge extends StatelessWidget {
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
                   child: Text(
-                    count > 9 ? "9+" : "$count",
+                    value > 9 ? "9+" : "$value",
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,

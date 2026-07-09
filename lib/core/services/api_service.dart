@@ -4,6 +4,20 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class ApiService {
  ApiService._() {
   dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        // Prints the fully-resolved URL (base + path + query) actually
+        // used for every request - added to diagnose a release-build
+        // "Failed host lookup" report where the request never left the
+        // device (missing android.permission.INTERNET), to make it
+        // immediately visible which host/path the app is really hitting.
+        print("========== API REQUEST ==========");
+        print("${options.method} ${options.uri}");
+        return handler.next(options);
+      },
+    ),
+  );
+  dio.interceptors.add(
     LogInterceptor(
       request: true,
       requestHeader: true,

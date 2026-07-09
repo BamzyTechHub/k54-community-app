@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 
-/// Matches the K54 Figma file's Members screen exactly (node 55:1914,
-/// measured + rendered via the Figma REST API, 2026-07-08). Still
-/// hardcoded mock data - no real Members API confirmed yet, per the
-/// UI-first strategy. member1/2/3.png (the original mock image paths)
-/// don't exist on disk, so avatars fall back to initials rather than
-/// attempting to load a nonexistent asset.
+import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/utils/nav.dart';
+import 'package:k54_mobile/core/utils/responsive.dart';
+import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/member_card.dart';
+import 'package:k54_mobile/features/friends/models/friendship_model.dart';
+import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
+import 'package:k54_mobile/features/members/controllers/members_controller.dart';
+import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
+import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
+import 'package:k54_mobile/features/profile/screens/profile_page.dart';
+
+/// Matches the K54 Figma file's Members screen exactly (node 55:1914).
+///
+/// "All Members" is wired to the confirmed `GET /buddyboss/v1/members`
+/// (the same endpoint messaging's search already proves works). "My
+/// Connections" reuses FriendsRepository rather than a duplicate local
+/// model, since BuddyBoss connections and this app's Friends feature are
+/// the same underlying relationship - no confirmed REST equivalent
+/// exists for the website's own "Following"/"Followers" admin-ajax
+/// scopes, so those two tabs are stubbed rather than guessed at.
 class MembersPage extends StatefulWidget {
   const MembersPage({super.key});
 
@@ -18,19 +31,85 @@ class MembersPage extends StatefulWidget {
 
 class _MembersPageState extends State<MembersPage> {
   int selectedTab = 0;
+  final tabs = const ["All Members", "My Connections", "Following", "Followers"];
 
-  final List<String> tabs = ["All Members", "My Connections", "Following", "Followers"];
+  /// Matches BP-REST's confirmed `type` sort values for this endpoint.
+  static const _sortOptions = {
+    "active": "Recently Active",
+    "newest": "Newest",
+    "alphabetical": "Alphabetical",
+    "popular": "Most Popular",
+  };
+  bool _gridView = true;
 
-  final List<Map<String, String>> members = [
-    {"name": "EVELYN", "joined": "Joined Feb 2026", "status": "Active", "followers": "39"},
-    {"name": "DANIEL", "joined": "Joined Jan 2026", "status": "Active", "followers": "102"},
-    {"name": "MICHAEL", "joined": "Joined Mar 2026", "status": "Online", "followers": "85"},
-  ];
+  final MembersController _membersController = MembersController();
+  List<Friendship> _connections = [];
+  bool _loadingConnections = true;
+  String? _connectionsError;
+
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _membersController.addListener(() => setState(() {}));
+    _membersController.load();
+    _loadConnections();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (selectedTab != 0) return;
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 300) {
+      _membersController.loadMore();
+    }
+  }
+
+  Future<void> _loadConnections() async {
+    setState(() {
+      _loadingConnections = true;
+      _connectionsError = null;
+    });
+    try {
+      _connections = await FriendsRepository.instance.getFriends();
+    } catch (e) {
+      _connectionsError = e.toString();
+    } finally {
+      if (mounted) setState(() => _loadingConnections = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _membersController.dispose();
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("$feature is coming soon")),
     );
+  }
+
+  void _openProfile(String userId) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(userId: userId)));
+  }
+
+  Future<void> _openMessage(String userId) async {
+    try {
+      final thread = await MessagingRepository.instance.findOrCreateThreadWith(otherUserId: userId);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ChatPage(threadId: thread.id, thread: thread)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't open chat: $e")));
+    }
   }
 
   Widget _iconChip({required IconData icon, required VoidCallback onTap}) {
@@ -61,7 +140,7 @@ class _MembersPageState extends State<MembersPage> {
             children: [
               Row(
                 children: [
-                  _iconChip(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
+                  _iconChip(icon: Icons.arrow_back, onTap: () => goHome(context)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
@@ -77,7 +156,8 @@ class _MembersPageState extends State<MembersPage> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: TextField(
-                              onChanged: (_) => _comingSoon("Search members"),
+                              controller: _searchController,
+                              onChanged: _membersController.search,
                               decoration: InputDecoration(
                                 isDense: true,
                                 border: InputBorder.none,
@@ -91,10 +171,7 @@ class _MembersPageState extends State<MembersPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _iconChip(
-                    icon: Icons.filter_list,
-                    onTap: () => _comingSoon("Filters"),
-                  ),
+                  _iconChip(icon: Icons.filter_list, onTap: () => _comingSoon("Filters")),
                 ],
               ),
               const SizedBox(height: 16),
@@ -125,59 +202,11 @@ class _MembersPageState extends State<MembersPage> {
                 }),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Text(
-                    "97 Members",
-                    style: GoogleFonts.lato(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.jetBlack,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => _comingSoon("Sort"),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.groupCardAccent, width: 0.5),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "Recently Active",
-                            style: GoogleFonts.lato(fontSize: 10, color: AppColors.groupMutedText),
-                          ),
-                          const Icon(Icons.keyboard_arrow_down, size: 12, color: AppColors.groupMutedText),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _comingSoon("Grid view"),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.groupCardAccent, width: 0.5),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.grid_view, size: 12, color: Colors.black),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: members.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) => _memberCard(members[index]),
-                ),
-              ),
+              if (selectedTab == 0) ...[
+                _buildMembersToolbar(),
+                const SizedBox(height: 12),
+              ],
+              Expanded(child: _buildBody()),
             ],
           ),
         ),
@@ -186,116 +215,183 @@ class _MembersPageState extends State<MembersPage> {
     );
   }
 
-  Widget _memberCard(Map<String, String> member) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.groupCardBackground,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.groupCardAccent),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 30, 16, 16),
-            child: Column(
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Colors.grey.shade200,
-                      child: Text(
-                        member["name"]!.isNotEmpty ? member["name"]![0] : "?",
-                        style: const TextStyle(fontSize: 24),
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: AppColors.onlineIndicator,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  member["name"]!,
-                  style: GoogleFonts.lato(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.jetBlack,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.lato(fontSize: 12, color: const Color(0xFF588D58)),
-                    children: [
-                      TextSpan(text: "${member["joined"]}  "),
-                      TextSpan(
-                        text: member["status"],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.lato(fontSize: 12, color: AppColors.groupMutedText),
-                    children: [
-                      TextSpan(text: "${member["followers"]} "),
-                      const TextSpan(
-                        text: "Followers",
-                        style: TextStyle(color: Color(0xFF588D58)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _buildBody() {
+    switch (selectedTab) {
+      case 0:
+        return _buildAllMembers();
+      case 1:
+        return _buildConnections();
+      default:
+        return Center(
+          child: Text(
+            "${tabs[selectedTab]} isn't available yet",
+            style: GoogleFonts.lato(color: Colors.grey.shade600),
+          ),
+        );
+    }
+  }
+
+  /// Matches Figma's row above the member list: total count, the
+  /// "Recently Active" sort dropdown (wired to BP-REST's confirmed
+  /// `type` param), and a grid/list view toggle (cosmetic only - both
+  /// modes render the same real data, no backend involved).
+  Widget _buildMembersToolbar() {
+    final total = _membersController.totalCount;
+    return Row(
+      children: [
+        Text(
+          total != null ? "$total Members" : "Members",
+          style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.jetBlack),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.groupCardAccent),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _membersController.sortType,
+              icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+              style: GoogleFonts.poppins(fontSize: 12, color: AppColors.jetBlack),
+              items: _sortOptions.entries
+                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) _membersController.sortBy(value);
+              },
             ),
           ),
-          Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: AppColors.groupCardAccent)),
-            ),
-            child: Row(
-              children: [
-                _memberAction(Icons.thumb_down_outlined, () => _comingSoon("Block")),
-                _memberAction(Icons.person_add_alt_1_outlined, () => _comingSoon("Connect")),
-                _memberAction(Icons.chat_bubble_outline, () => _comingSoon("Message")),
-                _memberAction(Icons.call_outlined, () => _comingSoon("Voice call")),
-                _memberAction(Icons.videocam_outlined, () => _comingSoon("Video call")),
-              ],
-            ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.groupCardAccent),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(Icons.grid_view, size: 18, color: _gridView ? AppColors.green : Colors.grey),
+                onPressed: () => setState(() => _gridView = true),
+              ),
+              IconButton(
+                icon: Icon(Icons.view_list, size: 18, color: !_gridView ? AppColors.green : Colors.grey),
+                onPressed: () => setState(() => _gridView = false),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAllMembers() {
+    if (_membersController.loading && _membersController.members.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+    }
+    if (_membersController.error != null && _membersController.members.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Couldn't load members.\n${_membersController.error}", textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            TextButton(onPressed: () => _membersController.load(), child: const Text("Retry")),
+          ],
+        ),
+      );
+    }
+    if (_membersController.members.isEmpty) {
+      return const Center(child: Text("No members found"));
+    }
+
+    final members = _membersController.members;
+    final itemCount = members.length + (_membersController.loadingMore ? 1 : 0);
+
+    Widget loadingTile() => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green)),
+        );
+
+    Widget tile(int index) {
+      final member = members[index];
+      return _memberCard(id: member.id, name: member.name, avatarUrl: member.avatarUrl);
+    }
+
+    return RefreshIndicator(
+      color: AppColors.green,
+      onRefresh: () => _membersController.load(),
+      child: _gridView
+          ? GridView.builder(
+              controller: _scrollController,
+              itemCount: itemCount,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: Responsive.gridColumns(context),
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.78,
+              ),
+              itemBuilder: (context, index) =>
+                  index >= members.length ? loadingTile() : tile(index),
+            )
+          : ListView.separated(
+              controller: _scrollController,
+              itemCount: itemCount,
+              separatorBuilder: (_, _) => const SizedBox(height: 14),
+              itemBuilder: (context, index) =>
+                  index >= members.length ? loadingTile() : tile(index),
+            ),
+    );
+  }
+
+  Widget _buildConnections() {
+    if (_loadingConnections) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+    }
+    if (_connectionsError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Couldn't load connections.\n$_connectionsError", textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadConnections, child: const Text("Retry")),
+          ],
+        ),
+      );
+    }
+    if (_connections.isEmpty) {
+      return const Center(child: Text("No connections yet"));
+    }
+
+    return RefreshIndicator(
+      color: AppColors.green,
+      onRefresh: _loadConnections,
+      child: ListView.separated(
+        itemCount: _connections.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        itemBuilder: (context, index) {
+          final f = _connections[index];
+          return _memberCard(id: f.otherUserId, name: f.otherUserName, avatarUrl: f.otherUserAvatar);
+        },
       ),
     );
   }
 
-  Widget _memberAction(IconData icon, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.groupCardAccent, width: 0.5)),
-          ),
-          child: Icon(icon, size: 18, color: const Color(0xFF7E7D7D)),
-        ),
-      ),
+  Widget _memberCard({required String id, required String name, String? avatarUrl}) {
+    return MemberCard(
+      id: id,
+      name: name,
+      avatarUrl: avatarUrl,
+      onTap: () => _openProfile(id),
+      onBlock: () => _comingSoon("Block"),
+      onConnect: () => _comingSoon("Connect"),
+      onMessage: () => _openMessage(id),
+      onCall: () => _comingSoon("Voice call"),
+      onVideoCall: () => _comingSoon("Video call"),
     );
   }
 }

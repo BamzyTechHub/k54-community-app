@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/messaging/screens/messages_page.dart';
-import 'package:k54_mobile/features/messaging/widgets/unread_badge.dart';
+import 'package:k54_mobile/core/widgets/unread_badge.dart';
+import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/friends/screens/friends_page.dart';
 import 'package:k54_mobile/features/groups/screens/groups_page.dart';
 
@@ -33,7 +34,10 @@ class _CommunicationNavigationState extends State<CommunicationNavigation> {
             _tabSegment(
               index: 0,
               label: "Messages",
-              icon: const UnreadBadge(child: Icon(Icons.chat_bubble_outline, size: 14)),
+              icon: UnreadBadge(
+                count: MessagingRepository.instance.unreadCount,
+                child: const Icon(Icons.chat_bubble_outline, size: 14),
+              ),
             ),
             _tabSegment(
               index: 1,
