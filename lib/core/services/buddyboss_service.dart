@@ -125,11 +125,14 @@ class BuddyBossService {
     return activities.map<Post>((item) => Post.fromBuddyBoss(item)).toList();
   }
 
-  Future<void> createPost({
+  /// Returns the created Post (parsed the same defensive way as
+  /// updatePost) so the caller has its real id - needed to chain a
+  /// follow-up call like toggleCommentsClosed right after creation.
+  Future<Post> createPost({
   required String content,
   String privacy = "public",
 }) async {
-  await _api.post(
+  final response = await _api.post(
     "/buddyboss/v1/activity",
     {
       "content": content,
@@ -138,6 +141,7 @@ class BuddyBossService {
       "privacy": privacy,
     },
   );
+  return Post.fromBuddyBoss(response.data);
 }
 
   /// Updates an existing post's content/privacy. Mirrors createPost's body

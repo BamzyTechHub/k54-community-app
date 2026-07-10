@@ -1,11 +1,76 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/features/auth/screens/login.dart';
 import 'package:k54_mobile/features/auth/screens/onboarding1.dart';
+import 'package:k54_mobile/features/home/screens/home_page.dart';
 
-class Splash1 extends StatelessWidget {
+const String hasSeenOnboardingKey = "hasSeenOnboarding";
+
+/// Auth gate: returning users with a still-valid session skip straight to
+/// Home, returning users who've seen onboarding before go straight to
+/// Login, and only genuinely first-time users see the Splash/Onboarding
+/// flow at all. Previously every launch hit Splash -> Onboarding
+/// unconditionally regardless of session state - AuthService.isLoggedIn()
+/// already existed but was never called anywhere.
+class Splash1 extends StatefulWidget {
   const Splash1({super.key});
 
   @override
+  State<Splash1> createState() => _Splash1State();
+}
+
+class _Splash1State extends State<Splash1> {
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final loggedIn = await AuthService().isLoggedIn();
+    if (loggedIn) {
+      try {
+        // Confirms the stored token still actually works server-side,
+        // not just that one is present locally.
+        await AuthService().getCurrentUser();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (route) => false,
+        );
+        return;
+      } catch (_) {
+        // Stored token is stale/expired - fall through to the normal flow.
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final seenOnboarding = prefs.getBool(hasSeenOnboardingKey) ?? false;
+    if (seenOnboarding) {
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const Login()),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (mounted) setState(() => _checking = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checking) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: SizedBox.shrink(),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
 

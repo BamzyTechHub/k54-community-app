@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
@@ -372,14 +373,32 @@ if (post.previewData.isNotEmpty)
     Expanded(
       child: TextButton.icon(
         onPressed: () async {
-  final updated = await BuddyBossService().toggleFavorite(
-    int.parse(post.id),
-  );
-
-  post.likes = updated.likes;
-  post.isFavorited = updated.isFavorited;
-
+  // Optimistic, same pattern as Share below - flips instantly instead
+  // of waiting on the round-trip, then reconciles with the server's
+  // real numbers (or reverts on failure).
+  final wasFavorited = post.isFavorited;
+  final previousLikes = post.likes;
+  post.isFavorited = !wasFavorited;
+  post.likes += wasFavorited ? -1 : 1;
   onPostChanged?.call();
+
+  try {
+    final updated = await BuddyBossService().toggleFavorite(
+      int.parse(post.id),
+    );
+    post.likes = updated.likes;
+    post.isFavorited = updated.isFavorited;
+    onPostChanged?.call();
+  } catch (e) {
+    post.isFavorited = wasFavorited;
+    post.likes = previousLikes;
+    onPostChanged?.call();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't update like: $e")),
+      );
+    }
+  }
 },
         icon: Icon(
   post.isFavorited
@@ -392,7 +411,7 @@ if (post.previewData.isNotEmpty)
     ),
     Expanded(
       child: TextButton.icon(
-        onPressed: () => CommentsSheet.show(context, post),
+        onPressed: () => CommentsSheet.show(context, post, onPostChanged: onPostChanged),
         icon: const Icon(Icons.chat_bubble_outline),
         label: Text(post.comments.toString()),
       ),
@@ -420,6 +439,18 @@ if (post.previewData.isNotEmpty)
 },
         icon: const Icon(Icons.share_outlined),
         label: Text(post.shares.toString()),
+      ),
+    ),
+    Expanded(
+      child: TextButton.icon(
+        onPressed: () {
+          final plainText = post.caption.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+          SharePlus.instance.share(
+            ShareParams(text: "${post.username} on K54 Global:\n\n$plainText"),
+          );
+        },
+        icon: const Icon(Icons.send_outlined),
+        label: const Text("Send"),
       ),
     ),
   ],

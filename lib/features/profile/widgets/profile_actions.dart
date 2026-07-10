@@ -8,14 +8,10 @@ import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
 import 'package:k54_mobile/features/profile/screens/edit_profile_page.dart';
 
 /// Matches the K54 Figma file's profile action row (nodes 289:225 and
-/// 428:323, rendered 2026-07-08): own profile shows "Edit" alone;
-/// someone else's profile shows "Follow" + "Connect". Figma's row has no
-/// messaging affordance at all, but removing the app's real, working
-/// messaging integration to match that exactly would be a functional
-/// regression - so a small icon-only Message button is appended after
-/// Connect instead, clearly a deliberate addition rather than an
-/// oversight. Flagged for a follow-up decision on where messaging should
-/// really live in this row once that's worth revisiting with Figma.
+/// 428:323): own profile shows "Edit" alone; someone else's profile
+/// shows Follow / Message / Connect, Message centered between the other
+/// two, per direct stakeholder feedback (2026-07-10) - all three equal-
+/// weight pill buttons, not a small icon-only Message affordance.
 class ProfileActions extends StatefulWidget {
   final bool isCurrentUser;
   final String? otherUserId;
@@ -149,7 +145,16 @@ class _ProfileActionsState extends State<ProfileActions> {
         _pillButton(
           label: "Follow",
           icon: Icons.thumb_up_alt_outlined,
+          filled: false,
           onTap: () => _comingSoon("Following members"),
+        ),
+        const SizedBox(width: 10),
+        _pillButton(
+          label: "Message",
+          icon: Icons.chat_bubble_outline,
+          filled: false,
+          loading: _openingChat,
+          onTap: _openingChat ? null : _openMessage,
         ),
         const SizedBox(width: 10),
         _pillButton(
@@ -157,27 +162,6 @@ class _ProfileActionsState extends State<ProfileActions> {
           icon: Icons.person_add_alt_1,
           loading: _sendingRequest,
           onTap: _sendConnectRequest,
-        ),
-        const SizedBox(width: 10),
-        GestureDetector(
-          onTap: _openingChat ? null : _openMessage,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.green, width: 1.5),
-            ),
-            child: Center(
-              child: _openingChat
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.chat_bubble_outline, size: 18, color: AppColors.green),
-            ),
-          ),
         ),
       ],
     );

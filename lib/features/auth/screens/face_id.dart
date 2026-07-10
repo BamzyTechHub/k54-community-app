@@ -1,9 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/biometric_service.dart';
 import 'package:k54_mobile/features/auth/screens/face_id_verified.dart';
 
+/// Same reasoning as touch_id.dart: device biometrics only prove device
+/// ownership, not a K54 session, so this only works as a shortcut to
+/// unlock an already-stored, still-valid session.
 class FaceId extends StatelessWidget {
   const FaceId({super.key});
+
+  Future<void> _authenticate(BuildContext context) async {
+    final loggedIn = await AuthService().isLoggedIn();
+    if (!loggedIn) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Log in with your password first to enable biometric login")),
+      );
+      return;
+    }
+    try {
+      await AuthService().getCurrentUser();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Your saved session has expired - please log in again")),
+      );
+      return;
+    }
+
+    final biometric = BiometricService();
+    final success = await biometric.authenticate();
+    if (success && context.mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const FaceIdVerified()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,24 +87,7 @@ class FaceId extends StatelessWidget {
 
               // Face ID Image
                 GestureDetector(
-  onTap: () async {
-
-    final biometric = BiometricService();
-
-    final success = await biometric.authenticate();
-
-    if (success && context.mounted) {
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const FaceIdVerified(),
-        ),
-      );
-
-    }
-
-  },
+  onTap: () => _authenticate(context),
 
   child: Image.asset(
     "assets/images/face_id_gray.png", 

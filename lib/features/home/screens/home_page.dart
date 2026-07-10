@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 import 'package:k54_mobile/features/activity/screens/timeline_page.dart';
 import 'package:k54_mobile/features/communication/communication_navigation.dart';
@@ -19,10 +20,13 @@ class HomePage extends StatefulWidget {
 
 
 class _HomePageState extends State<HomePage> {
-  // Stable key so the feed widget isn't torn down and remounted on every
-  // HomePage rebuild (it previously used ValueKey(DateTime.now()...),
-  // which forced a full remount + refetch on every rebuild).
-  final GlobalKey _timelineKey = GlobalKey();
+  // Stable, typed key so the feed widget isn't torn down and remounted on
+  // every HomePage rebuild (it previously used ValueKey(DateTime.now()...),
+  // which forced a full remount + refetch on every rebuild) - typed so a
+  // new post can trigger a real refetch via refreshTimeline() instead of
+  // relying on a HomePage setState() that, thanks to the stable key,
+  // never actually reaches the feed at all.
+  final GlobalKey<TimelinePageState> _timelineKey = GlobalKey<TimelinePageState>();
 
   @override
   void initState() {
@@ -168,7 +172,7 @@ IconButton(
 );
 
 if (created == true && mounted) {
-  setState(() {});
+  _timelineKey.currentState?.refreshTimeline();
 }
   },
 
@@ -246,7 +250,14 @@ IconButton(
 
   onPressed: () {
 
-    // Marketplace page coming later
+    // The real K54 store (Kafe' 54 merch on Printify) - confirmed live
+    // and reachable 2026-07-10. Opens externally rather than an in-app
+    // WebView, since an in-app WebView's back button was reportedly
+    // misbehaving before.
+    launchUrl(
+      Uri.parse("https://kafe-54.printify.me/"),
+      mode: LaunchMode.externalApplication,
+    );
 
   },
 

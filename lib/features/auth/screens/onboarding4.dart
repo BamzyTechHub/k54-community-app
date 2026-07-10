@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/auth/screens/login.dart';
-
-//  import 'home.dart'; // Replace with your actual home screen
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:k54_mobile/features/auth/screens/signup.dart';
+import 'package:k54_mobile/features/auth/screens/splash1.dart';
 
 class Onboarding4 extends StatelessWidget {
   const Onboarding4({super.key});
+
+  Future<void> _finishOnboarding(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(hasSeenOnboardingKey, true);
+    if (!context.mounted) return;
+    // New users go Onboarding -> Sign Up (not Login), and the whole
+    // Splash/Onboarding stack is cleared so a later back button on any
+    // screen reached from here can never land back on onboarding.
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const SignUp()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,15 +67,7 @@ class Onboarding4 extends StatelessWidget {
 
               // Jump In Button
               GestureDetector(
-                onTap: () {
-                  // Change this to your home screen
-                  Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (context) => const Login(),
-  ),
-);
-                },
+                onTap: () => _finishOnboarding(context),
 
                 child: Container(
                   width: double.infinity,

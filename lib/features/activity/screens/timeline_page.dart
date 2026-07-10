@@ -13,10 +13,10 @@ class TimelinePage extends StatefulWidget {
   });
 
   @override
-  State<TimelinePage> createState() => _TimelinePageState();
+  State<TimelinePage> createState() => TimelinePageState();
 }
 
-class _TimelinePageState extends State<TimelinePage> {
+class TimelinePageState extends State<TimelinePage> {
   final BuddyBossService _buddyBossService = BuddyBossService();
   final ScrollController _scrollController = ScrollController();
 

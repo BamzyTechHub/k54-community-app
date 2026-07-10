@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -37,6 +38,62 @@ final AuthService authService = AuthService();
   bool showPassword = false;
 
   bool showConfirmPassword = false;
+  bool _signingUp = false;
+
+  Future<void> _submit() async {
+    if (nameController.text.isEmpty ||
+        emailController.text.isEmpty ||
+        passwordController.text.isEmpty ||
+        confirmController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all fields")),
+      );
+      return;
+    }
+
+    if (passwordController.text != confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
+      return;
+    }
+
+    setState(() => _signingUp = true);
+    try {
+      final fullName = nameController.text.trim();
+      final parts = fullName.split(" ");
+
+      final firstName = parts.first;
+      final lastName = parts.length > 1 ? parts.sublist(1).join(" ") : "";
+
+      final username = emailController.text.trim().split("@").first;
+
+      await authService.register(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+        firstName: firstName,
+        lastName: lastName,
+        username: username,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Registration successful! Please check your email to activate your account.",
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _signingUp = false);
+    }
+  }
 
 
   @override
@@ -205,128 +262,10 @@ const SizedBox(height: 25),
 
 
 // Sign Up Button
-GestureDetector(
-
-  onTap: agree
-    ? () async {
-
-        if (nameController.text.isEmpty ||
-            emailController.text.isEmpty ||
-            passwordController.text.isEmpty ||
-            confirmController.text.isEmpty) {
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Please fill all fields"),
-            ),
-          );
-          return;
-        }
-
-        if (passwordController.text !=
-            confirmController.text) {
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Passwords do not match"),
-            ),
-          );
-          return;
-        }
-
-        try {
-  final fullName = nameController.text.trim();
-  final parts = fullName.split(" ");
-
-  final firstName = parts.first;
-  final lastName =
-      parts.length > 1 ? parts.sublist(1).join(" ") : "";
-
-  final username = emailController.text
-      .trim()
-      .split("@")
-      .first;
-
-  await authService.register(
-    email: emailController.text.trim(),
-    password: passwordController.text.trim(),
-    firstName: firstName,
-    lastName: lastName,
-    username: username,
-  );
-
-  if (!mounted) return;
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        "Registration successful! Please check your email to activate your account.",
-      ),
-    ),
-  );
-
-  Navigator.pop(context);
-} catch (e) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(e.toString()),
-    ),
-  );
-}
-      }
-    : null,
-
-
-  child: Container(
-
-    width: double.infinity,
-
-    height: 55,
-
-    decoration: BoxDecoration(
-
-      borderRadius: BorderRadius.circular(25),
-
-      gradient: const LinearGradient(
-
-        colors: [
-
-          Color(0xFF008000),
-
-          Color(0xFFAB8000),
-
-          Color(0xFF008000),
-
-        ],
-
-      ),
-
-    ),
-
-    child: Center(
-
-      child: Text(
-
-        "Sign Up",
-
-        style: TextStyle(
-
-          color: Colors.white.withValues(
-            alpha: agree ? 1 : 0.6,
-          ),
-
-          fontSize: 18,
-
-          fontWeight: FontWeight.bold,
-
-        ),
-
-      ),
-
-    ),
-
-  ),
-
+PrimaryButton(
+  label: "Sign Up",
+  loading: _signingUp,
+  onPressed: agree ? _submit : null,
 ),
 
 

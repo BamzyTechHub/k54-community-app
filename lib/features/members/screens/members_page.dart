@@ -245,16 +245,18 @@ class _MembersPageState extends State<MembersPage> {
         ),
         const Spacer(),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.groupCardAccent),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(7),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _membersController.sortType,
-              icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-              style: GoogleFonts.poppins(fontSize: 12, color: AppColors.jetBlack),
+              icon: const Icon(Icons.keyboard_arrow_down, size: 15),
+              isDense: true,
+              style: GoogleFonts.poppins(fontSize: 11, color: AppColors.jetBlack),
               items: _sortOptions.entries
                   .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                   .toList(),
@@ -266,25 +268,31 @@ class _MembersPageState extends State<MembersPage> {
         ),
         const SizedBox(width: 8),
         Container(
+          height: 28,
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.groupCardAccent),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(7),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: Icon(Icons.grid_view, size: 18, color: _gridView ? AppColors.green : Colors.grey),
-                onPressed: () => setState(() => _gridView = true),
-              ),
-              IconButton(
-                icon: Icon(Icons.view_list, size: 18, color: !_gridView ? AppColors.green : Colors.grey),
-                onPressed: () => setState(() => _gridView = false),
-              ),
+              _viewToggleIcon(Icons.grid_view, _gridView, () => setState(() => _gridView = true)),
+              _viewToggleIcon(Icons.view_list, !_gridView, () => setState(() => _gridView = false)),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _viewToggleIcon(IconData icon, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        alignment: Alignment.center,
+        child: Icon(icon, size: 15, color: selected ? AppColors.green : Colors.grey),
+      ),
     );
   }
 
@@ -330,8 +338,8 @@ class _MembersPageState extends State<MembersPage> {
               itemCount: itemCount,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: Responsive.gridColumns(context),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
                 childAspectRatio: 0.78,
               ),
               itemBuilder: (context, index) =>
@@ -340,7 +348,7 @@ class _MembersPageState extends State<MembersPage> {
           : ListView.separated(
               controller: _scrollController,
               itemCount: itemCount,
-              separatorBuilder: (_, _) => const SizedBox(height: 14),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) =>
                   index >= members.length ? loadingTile() : tile(index),
             ),
@@ -372,7 +380,7 @@ class _MembersPageState extends State<MembersPage> {
       onRefresh: _loadConnections,
       child: ListView.separated(
         itemCount: _connections.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final f = _connections[index];
           return _memberCard(id: f.otherUserId, name: f.otherUserName, avatarUrl: f.otherUserAvatar);

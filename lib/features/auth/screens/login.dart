@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/auth/screens/touch_id.dart';
 import 'package:k54_mobile/features/auth/screens/forgot_password.dart';
 import 'package:k54_mobile/features/auth/screens/signup.dart';
@@ -25,6 +26,7 @@ class _LoginState extends State<Login> {
     AuthService();
   bool rememberMe = false;
   bool hidePassword = true;
+  bool _loggingIn = false;
 
   @override
 void initState() {
@@ -47,6 +49,51 @@ Future<void> loadRememberMe() async {
   }
 
   setState(() {});
+}
+
+Future<void> _login() async {
+  if (emailController.text.isEmpty || passwordController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Please enter your email and password")),
+    );
+    return;
+  }
+
+  setState(() => _loggingIn = true);
+  try {
+    final success = await authService.login(
+      username: emailController.text.trim(),
+      password: passwordController.text.trim(),
+    );
+
+    if (success) {
+      final response = await authService.getCurrentUser();
+      debugPrint(response.data.toString());
+
+      final prefs = await SharedPreferences.getInstance();
+
+      if (rememberMe) {
+        await prefs.setBool("rememberMe", true);
+        await prefs.setString("email", emailController.text.trim());
+      } else {
+        await prefs.remove("rememberMe");
+        await prefs.remove("email");
+      }
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+  } finally {
+    if (mounted) setState(() => _loggingIn = false);
+  }
 }
 
   @override
@@ -158,6 +205,26 @@ Future<void> loadRememberMe() async {
                       borderRadius:
                           BorderRadius.circular(16),
                     ),
+
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+
+                      borderSide: const BorderSide(
+                        color: Color(0xFF008000),
+                        width: 2,
+                      ),
+                    ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+
+                      borderSide: const BorderSide(
+                        color: Color(0xFF008000),
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
 
@@ -215,60 +282,11 @@ const SizedBox(height: 10),
                 const SizedBox(height: 20),
 
                 // Login Button
-                GestureDetector(
-  onTap: () async {
-    if (emailController.text.isEmpty ||
-        passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter your email and password"),
-        ),
-      );
-      return;
-    }
-
-    try {
-      final success = await authService.login(
-        username: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-
-      if (success) {
-        final response = await authService.getCurrentUser();
-        debugPrint(response.data.toString());
-
-        final prefs = await SharedPreferences.getInstance();
-
-        if (rememberMe) {
-          await prefs.setBool("rememberMe", true);
-          await prefs.setString(
-            "email",
-            emailController.text.trim(),
-          );
-        } else {
-          await prefs.remove("rememberMe");
-          await prefs.remove("email");
-        }
-
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomePage(),
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-        ),
-      );
-    }
-  },
-  child: _gradientButton("Login"),
-),
+                PrimaryButton(
+                  label: "Login",
+                  loading: _loggingIn,
+                  onPressed: _login,
+                ),
 
                 const SizedBox(height: 30),
 
@@ -323,18 +341,13 @@ Row(
   ],
 ),
                 // Sign Up Button
-                GestureDetector(
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SignUp(),
-      ),
-    );
-  },
-
-  child: _gradientButton("Sign Up"),
-),
+                PrimaryButton(
+                  label: "Sign Up",
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SignUp()),
+                  ),
+                ),
 
                 const SizedBox(height: 20),
 
@@ -407,38 +420,6 @@ Row(
                 const SizedBox(height: 25),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _gradientButton(String text) {
-    return Container(
-      height: 55,
-      width: double.infinity,
-
-      decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(25),
-
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF008000),
-            Color(0xFFAB8000),
-            Color(0xFF008000),
-          ],
-        ),
-      ),
-
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight:
-                FontWeight.w600,
           ),
         ),
       ),

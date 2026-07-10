@@ -83,6 +83,15 @@ class _GroupsPageState extends State<GroupsPage> {
 
   Future<void> _toggleMembership(Group group) async {
     final isMember = _myGroupIds.contains(group.id);
+    // Optimistic - flips the button instantly instead of waiting on the
+    // round-trip + a full My Groups refetch, then reconciles for real.
+    setState(() {
+      if (isMember) {
+        _myGroupIds.remove(group.id);
+      } else {
+        _myGroupIds.add(group.id);
+      }
+    });
     try {
       if (isMember) {
         await GroupsRepository.instance.leaveGroup(group.id);
@@ -92,6 +101,13 @@ class _GroupsPageState extends State<GroupsPage> {
       await _myGroupsController.load();
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        if (isMember) {
+          _myGroupIds.add(group.id);
+        } else {
+          _myGroupIds.remove(group.id);
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Couldn't update membership: $e")),
       );
@@ -335,16 +351,18 @@ class _GroupsPageState extends State<GroupsPage> {
         ),
         const Spacer(),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.groupCardAccent),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(7),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _allGroupsController.orderby,
-              icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-              style: GoogleFonts.poppins(fontSize: 12, color: AppColors.jetBlack),
+              icon: const Icon(Icons.keyboard_arrow_down, size: 15),
+              isDense: true,
+              style: GoogleFonts.poppins(fontSize: 11, color: AppColors.jetBlack),
               items: sortOptions.entries
                   .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                   .toList(),

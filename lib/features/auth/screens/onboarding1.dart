@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/auth/screens/onboarding2.dart';
+import 'package:k54_mobile/features/auth/screens/onboarding4.dart';
 
 class Onboarding1 extends StatelessWidget {
   const Onboarding1({super.key});
@@ -87,18 +87,6 @@ class Onboarding1 extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                       ),
-
-                      const SizedBox(width: 8),
-
-                      Container(
-                        width: 8,
-                        height: 8,
-
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFDAD7D7),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
                     ],
                   ),
 
@@ -109,7 +97,7 @@ class Onboarding1 extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const Onboarding2(),
+        builder: (context) => const Onboarding4(),
       ),
     );
   },

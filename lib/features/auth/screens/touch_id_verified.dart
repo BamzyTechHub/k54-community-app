@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/auth/screens/profile_setup.dart';
+import 'package:k54_mobile/features/home/screens/home_page.dart';
 
+/// Only ever reached from touch_id.dart, which now only lets this happen
+/// when a valid stored session already exists - so "verified" here means
+/// "unlocked an existing session," not "just signed up." Goes straight to
+/// Home (previously incorrectly routed to ProfileSetup, the brand-new-
+/// signup flow, every time).
 class TouchIdVerified extends StatelessWidget {
   const TouchIdVerified({super.key});
 
@@ -76,11 +81,12 @@ class TouchIdVerified extends StatelessWidget {
               // Proceed button
               GestureDetector(
                  onTap: () {
-  Navigator.push(
+  Navigator.pushAndRemoveUntil(
     context,
     MaterialPageRoute(
-      builder: (context) => const ProfileSetup(),
+      builder: (context) => const HomePage(),
     ),
+    (route) => false,
   );
 },
 

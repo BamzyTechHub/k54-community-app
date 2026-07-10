@@ -125,8 +125,22 @@ class _ChatPageState extends State<ChatPage> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
+          IconButton(
+            onPressed: () => _comingSoon("Voice call"),
+            icon: const Icon(Icons.call_outlined, size: 22),
+          ),
+          IconButton(
+            onPressed: () => _comingSoon("Video call"),
+            icon: const Icon(Icons.videocam_outlined, size: 22),
+          ),
         ],
       ),
+    );
+  }
+
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$feature is coming soon")),
     );
   }
 

@@ -117,13 +117,6 @@ class _MessagesPageState extends State<MessagesPage> {
                     child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
                   ),
                   const SizedBox(width: 10),
-                  _iconButton(
-                    icon: Icons.videocam_outlined,
-                    onTap: () => _comingSoon("Group video call"),
-                  ),
-                  const SizedBox(width: 8),
-                  _iconButton(icon: Icons.call_outlined, onTap: () => _comingSoon("Group call")),
-                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _comingSoon("More options"),
                     child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),

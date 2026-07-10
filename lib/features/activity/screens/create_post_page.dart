@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/features/ai/screens/ai_page.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 
 class CreatePostPage extends StatefulWidget {
   /// When set, this screen edits [editingPost] instead of composing a new
@@ -52,6 +54,12 @@ bool turnOffComments = false;
     postController.dispose();
     super.dispose();
   }
+void _comingSoon(String feature) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text("$feature is coming soon")),
+  );
+}
+
 Future<void> pickImage() async {
   final image = await picker.pickImage(
     source: ImageSource.gallery,
@@ -114,10 +122,18 @@ Future<void> pickImage() async {
       if (!mounted) return;
       Navigator.pop(context, updated);
     } else {
-      await buddyBossService.createPost(
+      final created = await buddyBossService.createPost(
         content: postController.text.trim(),
         privacy: "public",
       );
+      if (turnOffComments) {
+        try {
+          await buddyBossService.toggleCommentsClosed(created.id, true);
+        } catch (_) {
+          // The post itself published fine - a failed follow-up toggle
+          // isn't worth blocking on or rolling back for.
+        }
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     }
@@ -213,8 +229,13 @@ Widget build(BuildContext context) {
                 const SizedBox(width: 10),
 
 
-                // Privacy selector
-                const Row(
+                // Privacy selector - always publishes as "public" (see
+                // publishPost) since no confirmed way exists yet to send
+                // any other privacy value, so this is honestly a
+                // coming-soon tap rather than a dropdown with no effect.
+                GestureDetector(
+                  onTap: () => _comingSoon("Choosing who can see this post"),
+                  child: const Row(
 
                   children: [
 
@@ -241,7 +262,7 @@ Widget build(BuildContext context) {
                     ),
 
                   ],
-
+                  ),
                 ),
 
               ],
@@ -314,8 +335,15 @@ Row(
 
   children: [
 
-    // Create with AI Button
-    Container(
+    // Create with AI Button - routes to the real, working AI Assistant
+    // rather than doing nothing, since that's genuine functionality this
+    // app already has.
+    GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AiPage()),
+      ),
+      child: Container(
 
       padding: const EdgeInsets.symmetric(
         horizontal: 12,
@@ -356,17 +384,14 @@ Row(
 
       ),
 
+      ),
     ),
 
 
     // Video
     IconButton(
 
-      onPressed: () {
-
-        // Upload video later
-
-      },
+      onPressed: () => _comingSoon("Attaching a video"),
 
       icon: const Icon(
         Icons.play_circle_outline,
@@ -390,11 +415,7 @@ Row(
     // Attachment
     IconButton(
 
-      onPressed: () {
-
-        // Attach file later
-
-      },
+      onPressed: () => _comingSoon("Attaching a file"),
 
       icon: const Icon(
         Icons.attach_file,
@@ -406,11 +427,7 @@ Row(
     // Emoji
     IconButton(
 
-      onPressed: () {
-
-        // Emoji picker later
-
-      },
+      onPressed: () => _comingSoon("Emoji picker"),
 
       icon: const Icon(
         Icons.sentiment_satisfied_alt_outlined,
@@ -504,9 +521,7 @@ Row(
 
     Expanded(
   child: GestureDetector(
-    onTap: () {
-      // Save Draft later
-    },
+    onTap: () => _comingSoon("Saving drafts"),
     child: Container(
       height: 55,
       decoration: BoxDecoration(
@@ -536,55 +551,11 @@ Row(
 
     // Publish Button
      Expanded(
-  child: GestureDetector(
-    onTap: isLoading ? null : publishPost,
-    child: Container(
-
-        height: 55,
-
-        decoration: BoxDecoration(
-
-          borderRadius: BorderRadius.circular(30),
-
-          gradient: const LinearGradient(
-
-            colors: [
-
-              Color(0xFF008000),
-
-              Color(0xFFAB8000),
-
-              Color(0xFF008000),
-
-            ],
-
-          ),
-
-        ),
-
-         child: Center(
-  child: isLoading
-      ? const SizedBox(
-          height: 22,
-          width: 22,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-      : Text(
-          _isEditing ? "Save Changes" : "Publish",
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-),
-
-      ),
-
-    ),
+  child: PrimaryButton(
+    label: _isEditing ? "Save Changes" : "Publish",
+    loading: isLoading,
+    onPressed: publishPost,
+  ),
 ),
   ],
 

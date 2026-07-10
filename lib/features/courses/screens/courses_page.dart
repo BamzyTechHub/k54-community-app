@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
@@ -141,17 +142,19 @@ Row(
     // Filter Dropdown
     Container(
 
+      height: 28,
+
       padding: const EdgeInsets.symmetric(
-        horizontal: 10,
+        horizontal: 8,
       ),
 
       decoration: BoxDecoration(
 
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: AppColors.groupCardAccent,
         ),
 
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(7),
 
       ),
 
@@ -161,8 +164,11 @@ Row(
 
         underline: const SizedBox(),
 
+        isDense: true,
+
         icon: const Icon(
           Icons.keyboard_arrow_down,
+          size: 15,
         ),
 
         items: filters.map((item) {
@@ -174,7 +180,7 @@ Row(
             child: Text(
               item,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
               ),
             ),
 

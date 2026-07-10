@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/auth/screens/profile_setup.dart';
+import 'package:k54_mobile/features/home/screens/home_page.dart';
 
+/// Same reasoning as touch_id_verified.dart.
 class FaceIdVerified extends StatelessWidget {
   const FaceIdVerified({super.key});
 
@@ -75,11 +76,12 @@ class FaceIdVerified extends StatelessWidget {
               GestureDetector(
   onTap: () {
 
-    Navigator.push(
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (context) => const ProfileSetup(),
+        builder: (context) => const HomePage(),
       ),
+      (route) => false,
     );
 
   },

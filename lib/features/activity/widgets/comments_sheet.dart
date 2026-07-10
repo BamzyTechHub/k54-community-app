@@ -12,10 +12,11 @@ import 'package:k54_mobile/core/services/buddyboss_service.dart';
 /// language observed elsewhere in the app (post_card.dart in particular).
 class CommentsSheet extends StatefulWidget {
   final Post post;
+  final VoidCallback? onPostChanged;
 
-  const CommentsSheet({super.key, required this.post});
+  const CommentsSheet({super.key, required this.post, this.onPostChanged});
 
-  static Future<void> show(BuildContext context, Post post) {
+  static Future<void> show(BuildContext context, Post post, {VoidCallback? onPostChanged}) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -23,7 +24,7 @@ class CommentsSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
-      builder: (_) => CommentsSheet(post: post),
+      builder: (_) => CommentsSheet(post: post, onPostChanged: onPostChanged),
     );
   }
 
@@ -141,6 +142,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
         _replyingTo = null;
         _sending = false;
       });
+      // The post card underneath (and the count on it) is a separate
+      // widget from this sheet - without this callback, a successfully
+      // posted comment would show up in the sheet's own list but the
+      // count on the feed card behind it would never move.
+      widget.post.comments += 1;
+      widget.onPostChanged?.call();
     } catch (e) {
       if (!mounted) return;
       setState(() => _sending = false);
