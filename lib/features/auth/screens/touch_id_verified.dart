@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
 
 /// Only ever reached from touch_id.dart, which now only lets this happen
@@ -79,44 +80,15 @@ class TouchIdVerified extends StatelessWidget {
               const Spacer(),
 
               // Proceed button
-              GestureDetector(
-                 onTap: () {
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const HomePage(),
-    ),
-    (route) => false,
-  );
-},
-
-                child: Container(
-                  width: double.infinity,
-                  height: 55,
-
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(25),
-
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF008000),
-                        Color(0xFFAB8000),
-                        Color(0xFF008000),
-                      ],
-                    ),
-                  ),
-
-                  child: const Center(
-                    child: Text(
-                      "Proceed",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
+              PrimaryButton(
+                label: "Proceed",
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                    (route) => false,
+                  );
+                },
               ),
 
               const SizedBox(height: 40),

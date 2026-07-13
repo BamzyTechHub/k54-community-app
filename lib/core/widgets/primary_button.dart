@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// The real, confirmed button color scheme from k54global.com's own CSS
-/// (pulled directly from the live page's custom-property values, not
-/// Figma - Figma's static renders show a bold green/gold/green gradient
-/// for the same buttons, which is what every button in this app matched
-/// until now; per direct instruction (2026-07-10) the live site wins for
-/// button color specifically):
-///   --bb-primary-button-background-regular: #B9D6AD (text #000000)
-///   --bb-primary-button-background-hover:   #AB8000 (text #FFFFFF)
+import 'package:k54_mobile/core/theme/app_colors.dart';
+
+/// The real, confirmed button color scheme from k54global.com's own CSS -
+/// see AppColors.buttonRegularBg's doc comment for the source values.
 /// Flutter mobile has no mouse hover, so "hover" maps to the pressed
 /// state - held via GestureDetector's onTapDown/onTapUp/onTapCancel
 /// rather than a static color, so it actually animates like a real
@@ -28,11 +24,6 @@ class PrimaryButton extends StatefulWidget {
     this.icon,
   });
 
-  static const _regularBg = Color(0xFFB9D6AD);
-  static const _pressedBg = Color(0xFFAB8000);
-  static const _regularText = Colors.black;
-  static const _pressedText = Colors.white;
-
   @override
   State<PrimaryButton> createState() => _PrimaryButtonState();
 }
@@ -49,9 +40,9 @@ class _PrimaryButtonState extends State<PrimaryButton> {
   Widget build(BuildContext context) {
     final disabled = widget.onPressed == null || widget.loading;
     final bg = disabled
-        ? PrimaryButton._regularBg.withValues(alpha: 0.5)
-        : (_pressed ? PrimaryButton._pressedBg : PrimaryButton._regularBg);
-    final fg = _pressed ? PrimaryButton._pressedText : PrimaryButton._regularText;
+        ? AppColors.buttonRegularBg.withValues(alpha: 0.5)
+        : (_pressed ? AppColors.buttonPressedBg : AppColors.buttonRegularBg);
+    final fg = _pressed ? AppColors.buttonPressedText : AppColors.buttonRegularText;
 
     return GestureDetector(
       onTapDown: (_) => _setPressed(true),

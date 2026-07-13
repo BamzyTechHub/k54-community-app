@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 
 /// Shown after Change Email successfully calls the real WP-core endpoint
 /// (POST /wp/v2/users/me) - WordPress genuinely emails a confirmation
@@ -41,16 +42,10 @@ class EmailVerificationPendingPage extends StatelessWidget {
                 style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade700),
               ),
               const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
+              PrimaryButton(
+                label: "Done",
                 height: 52,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(26)),
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text("Done", style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-                  ),
-                ),
+                onPressed: () => Navigator.pop(context),
               ),
             ],
           ),

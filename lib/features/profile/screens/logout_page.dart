@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/auth/screens/login.dart';
 
 /// Matches the K54 Figma file's Logout confirmation + success screens
@@ -84,48 +85,18 @@ class _LogoutPageState extends State<LogoutPage> {
               ),
               const SizedBox(height: 30),
               if (_loggedOut)
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const Login()),
-                      (route) => false,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.brandGradient,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Login",
-                          style: GoogleFonts.lato(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                        ),
-                      ),
-                    ),
+                PrimaryButton(
+                  label: "Login",
+                  onPressed: () => Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const Login()),
+                    (route) => false,
                   ),
                 )
               else ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: GestureDetector(
-                    onTap: _confirmLogout,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.brandGradient,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Logout",
-                          style: GoogleFonts.lato(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ),
+                PrimaryButton(
+                  label: "Logout",
+                  onPressed: _confirmLogout,
                 ),
                 const SizedBox(height: 12),
                 SizedBox(

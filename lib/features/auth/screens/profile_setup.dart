@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_fields_form.dart';
 
 /// Post-signup onboarding step. Shares its xprofile field inputs (Field/
@@ -120,30 +121,10 @@ class _ProfileSetupState extends State<ProfileSetup> {
                 const SizedBox(height: 15),
                 ProfileFieldsForm(data: _fields),
                 const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: isSaving ? null : _save,
-                  child: Container(
-                    width: double.infinity,
-                    height: 55,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(25),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF008000), Color(0xFFAB8000), Color(0xFF008000)],
-                      ),
-                    ),
-                    child: Center(
-                      child: isSaving
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text(
-                              "Save and Continue",
-                              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                    ),
-                  ),
+                PrimaryButton(
+                  label: "Save and Continue",
+                  loading: isSaving,
+                  onPressed: _save,
                 ),
                 const SizedBox(height: 15),
                 GestureDetector(

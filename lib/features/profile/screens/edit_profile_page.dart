@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/profile/screens/change_profile_photo_page.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_fields_form.dart';
 
@@ -210,32 +211,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
               _field(label: "Email", controller: emailController, enabled: false),
               ProfileFieldsForm(data: _fields),
               const SizedBox(height: 10),
-              GestureDetector(
-                onTap: _saving ? null : _save,
-                child: Container(
-                  height: 55,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    gradient: AppColors.brandGradient,
-                  ),
-                  child: Center(
-                    child: _saving
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : Text(
-                            "Save Changes",
-                            style: GoogleFonts.lato(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                  ),
-                ),
+              PrimaryButton(
+                label: "Save Changes",
+                loading: _saving,
+                onPressed: _save,
               ),
               const SizedBox(height: 12),
               GestureDetector(

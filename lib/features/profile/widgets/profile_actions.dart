@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/pressable_pill.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
@@ -82,42 +81,12 @@ class _ProfileActionsState extends State<ProfileActions> {
     bool loading = false,
   }) {
     return Expanded(
-      child: GestureDetector(
+      child: PressablePill(
+        label: label,
+        icon: icon,
         onTap: onTap,
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25),
-            gradient: filled ? AppColors.brandGradient : null,
-            border: filled ? null : Border.all(color: AppColors.green, width: 1.5),
-          ),
-          child: Center(
-            child: loading
-                ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: filled ? Colors.white : AppColors.green,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon, size: 16, color: filled ? Colors.white : AppColors.green),
-                      const SizedBox(width: 6),
-                      Text(
-                        label,
-                        style: GoogleFonts.lato(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: filled ? Colors.white : AppColors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
+        filled: filled,
+        loading: loading,
       ),
     );
   }

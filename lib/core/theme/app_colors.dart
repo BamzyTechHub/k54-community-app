@@ -13,6 +13,19 @@ class AppColors {
     colors: [green, gold, green],
   );
 
+  /// The real button color scheme, pulled directly from k54global.com's
+  /// own CSS custom properties (--bb-primary-button-background-regular/
+  /// hover) - light sage green by default, gold when pressed, black/white
+  /// text to match. Figma's static renders show the bold [brandGradient]
+  /// above for the same buttons instead; per direct instruction
+  /// (2026-07-10) the live site wins for button color specifically. See
+  /// core/widgets/primary_button.dart for the shared button widget built
+  /// around these.
+  static const buttonRegularBg = Color(0xFFB9D6AD);
+  static const buttonPressedBg = gold;
+  static const buttonRegularText = black;
+  static const buttonPressedText = white;
+
   // Text colors
   static const jetBlack = Color(0xFF1A1A1A);
   static const subHeading = Color(0xFF505050);

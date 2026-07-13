@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/auth/screens/signup.dart';
 import 'package:k54_mobile/features/auth/screens/splash1.dart';
 
@@ -66,36 +67,9 @@ class Onboarding4 extends StatelessWidget {
               const Spacer(),
 
               // Jump In Button
-              GestureDetector(
-                onTap: () => _finishOnboarding(context),
-
-                child: Container(
-                  width: double.infinity,
-                  height: 55,
-
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(25),
-
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF008000),
-                        Color(0xFFAB8000),
-                        Color(0xFF008000),
-                      ],
-                    ),
-                  ),
-
-                  child: const Center(
-                    child: Text(
-                      "Jump In!",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
+              PrimaryButton(
+                label: "Jump In!",
+                onPressed: () => _finishOnboarding(context),
               ),
 
               const SizedBox(height: 20),

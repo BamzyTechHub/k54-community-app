@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/profile/screens/email_verification_pending_page.dart';
 
 /// Wired to the confirmed WordPress core REST endpoint
@@ -148,23 +149,10 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                 ),
               ),
               const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Text("Update Email", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
+              PrimaryButton(
+                label: "Update Email",
+                loading: _saving,
+                onPressed: _save,
               ),
               const SizedBox(height: 30),
             ],

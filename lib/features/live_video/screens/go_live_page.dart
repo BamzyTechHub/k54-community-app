@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 
 /// UI-only pre-broadcast screen (Figma's "GO LIVE" frame, node 352:246 -
 /// couldn't re-verify pixel details, Figma API is rate-limited). No
@@ -88,22 +89,10 @@ class _GoLivePageState extends State<GoLivePage> {
                 ],
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
+              PrimaryButton(
+                label: "Go Live",
                 height: 52,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: AppColors.brandGradient,
-                    borderRadius: BorderRadius.circular(26),
-                  ),
-                  child: TextButton(
-                    onPressed: _comingSoon,
-                    child: Text(
-                      "Go Live",
-                      style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-                    ),
-                  ),
-                ),
+                onPressed: _comingSoon,
               ),
             ],
           ),

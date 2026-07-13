@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/pressable_pill.dart';
 import 'package:k54_mobile/features/ai/controllers/ai_chat_controller.dart';
 import 'package:k54_mobile/features/ai/models/ai_chat_message.dart';
 
@@ -346,20 +347,9 @@ class _AiPageState extends State<AiPage> {
   }
 
   Widget _pill(String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10, right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: AppColors.brandGradient,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.lato(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, right: 10),
+      child: PressablePill(label: label, onTap: onTap, height: 42),
     );
   }
 
