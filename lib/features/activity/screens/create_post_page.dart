@@ -6,6 +6,7 @@ import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/features/ai/screens/ai_page.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
 class CreatePostPage extends StatefulWidget {
   /// When set, this screen edits [editingPost] instead of composing a new
@@ -233,8 +234,9 @@ Widget build(BuildContext context) {
                 // publishPost) since no confirmed way exists yet to send
                 // any other privacy value, so this is honestly a
                 // coming-soon tap rather than a dropdown with no effect.
-                GestureDetector(
+                TapScale(
                   onTap: () => _comingSoon("Choosing who can see this post"),
+                  borderRadius: BorderRadius.circular(12),
                   child: const Row(
 
                   children: [
@@ -338,11 +340,12 @@ Row(
     // Create with AI Button - routes to the real, working AI Assistant
     // rather than doing nothing, since that's genuine functionality this
     // app already has.
-    GestureDetector(
+    TapScale(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const AiPage()),
       ),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
 
       padding: const EdgeInsets.symmetric(
@@ -520,8 +523,9 @@ Row(
   children: [
 
     Expanded(
-  child: GestureDetector(
+  child: TapScale(
     onTap: () => _comingSoon("Saving drafts"),
+    borderRadius: BorderRadius.circular(30),
     child: Container(
       height: 55,
       decoration: BoxDecoration(

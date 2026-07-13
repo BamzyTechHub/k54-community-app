@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/features/messaging/controllers/chat_controller.dart';
 import 'package:k54_mobile/features/messaging/models/chat_message_model.dart';
 import 'package:k54_mobile/features/messaging/models/message_thread_model.dart';
@@ -171,7 +173,10 @@ class _ChatPageState extends State<ChatPage> {
       controller: _scrollController,
       padding: const EdgeInsets.all(15),
       itemCount: messages.length,
-      itemBuilder: (context, index) => _buildBubble(messages[index]),
+      itemBuilder: (context, index) => FadeSlideIn(
+        key: ValueKey(messages[index].id),
+        child: _buildBubble(messages[index]),
+      ),
     );
   }
 
@@ -333,12 +338,16 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           const SizedBox(width: 5),
-          IconButton(
-            onPressed: _controller.sending ? null : _send,
-            icon: _controller.sending
-                ? const SizedBox(
-                    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.send, color: Color(0xFF008000)),
+          TapScale(
+            onTap: _controller.sending ? null : _send,
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: _controller.sending
+                  ? const SizedBox(
+                      width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.send, color: Color(0xFF008000)),
+            ),
           ),
         ],
       ),

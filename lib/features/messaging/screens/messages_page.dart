@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/features/messaging/controllers/inbox_controller.dart';
 import 'package:k54_mobile/features/messaging/models/message_thread_model.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
@@ -70,8 +72,9 @@ class _MessagesPageState extends State<MessagesPage> {
   }
 
   Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
+    return TapScale(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 24,
         height: 24,
@@ -112,13 +115,15 @@ class _MessagesPageState extends State<MessagesPage> {
                     ),
                   ),
                   const Spacer(),
-                  GestureDetector(
+                  TapScale(
                     onTap: () => _comingSoon("Search"),
+                    borderRadius: BorderRadius.circular(12),
                     child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
                   ),
                   const SizedBox(width: 10),
-                  GestureDetector(
+                  TapScale(
                     onTap: () => _comingSoon("More options"),
+                    borderRadius: BorderRadius.circular(12),
                     child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),
                   ),
                 ],
@@ -183,7 +188,11 @@ class _MessagesPageState extends State<MessagesPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: threads.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
-        itemBuilder: (context, index) => _threadTile(threads[index]),
+        itemBuilder: (context, index) => FadeSlideIn(
+          key: ValueKey(threads[index].id),
+          delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+          child: _threadTile(threads[index]),
+        ),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
 
 class CoursesPage extends StatefulWidget {
@@ -18,6 +20,11 @@ class CoursesPage extends StatefulWidget {
 
 class _CoursesPageState extends State<CoursesPage> {
 
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$feature isn't available yet")),
+    );
+  }
 
   // Filter Option
   String selectedFilter = "Release Date (newest first)";
@@ -239,7 +246,13 @@ Expanded(
       final course = courses[index];
 
 
-      return Container(
+      return FadeSlideIn(
+        key: ValueKey(course["title"]),
+        delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+        child: TapScale(
+        onTap: () => _comingSoon(course["title"] ?? "This course"),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
 
         decoration: BoxDecoration(
 
@@ -494,6 +507,8 @@ Padding(
 
         ),
 
+      ),
+        ),
       );
 
     },
