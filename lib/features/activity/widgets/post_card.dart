@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
@@ -69,7 +70,7 @@ class PostCard extends StatelessWidget {
       ],
     ),
   ),
-                 GestureDetector(
+                 TapScale(
   onTap: () {
     Navigator.push(
       context,
@@ -80,6 +81,7 @@ class PostCard extends StatelessWidget {
       ),
     );
   },
+  borderRadius: BorderRadius.circular(24),
   child: CircleAvatar(
     radius: 24,
     backgroundColor: Colors.grey.shade200,
@@ -97,7 +99,7 @@ class PostCard extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
 
-       GestureDetector(
+       TapScale(
   onTap: () {
     Navigator.push(
       context,
@@ -371,8 +373,10 @@ if (post.previewData.isNotEmpty)
           Row(
   children: [
     Expanded(
-      child: TextButton.icon(
-        onPressed: () async {
+      child: _LikeButton(
+        isFavorited: post.isFavorited,
+        count: post.likes,
+        onTap: () async {
   // Optimistic, same pattern as Share below - flips instantly instead
   // of waiting on the round-trip, then reconciles with the server's
   // real numbers (or reverts on failure).
@@ -400,13 +404,6 @@ if (post.previewData.isNotEmpty)
     }
   }
 },
-        icon: Icon(
-  post.isFavorited
-      ? Icons.favorite
-      : Icons.favorite_border,
-  color: post.isFavorited ? Colors.red : null,
-),
-        label: Text(post.likes.toString()),
       ),
     ),
     Expanded(
@@ -458,6 +455,59 @@ if (post.previewData.isNotEmpty)
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A real "pop" on like, the single most recognizable micro-interaction
+/// on any social feed (Instagram/Facebook/Twitter all do this) - the
+/// plain TextButton.icon this replaced just swapped the icon instantly
+/// with no motion at all, which reads as static no matter how correct
+/// the layout is.
+class _LikeButton extends StatefulWidget {
+  final bool isFavorited;
+  final int count;
+  final VoidCallback onTap;
+
+  const _LikeButton({required this.isFavorited, required this.count, required this.onTap});
+
+  @override
+  State<_LikeButton> createState() => _LikeButtonState();
+}
+
+class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  );
+  late final Animation<double> _scale = TweenSequence([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 60),
+  ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    if (!widget.isFavorited) _controller.forward(from: 0);
+    widget.onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: _handleTap,
+      icon: ScaleTransition(
+        scale: _scale,
+        child: Icon(
+          widget.isFavorited ? Icons.favorite : Icons.favorite_border,
+          color: widget.isFavorited ? Colors.red : null,
+        ),
+      ),
+      label: Text(widget.count.toString()),
     );
   }
 }

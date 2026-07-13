@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/features/activity/widgets/post_card.dart';
 
 class TimelinePage extends StatefulWidget {
@@ -160,7 +161,10 @@ class TimelinePageState extends State<TimelinePage> {
               }
 
               final post = posts[index];
-              return PostCard(
+              return FadeSlideIn(
+                key: ValueKey(post.id),
+                delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+                child: PostCard(
                 post: post,
                 onPostChanged: () {
                   // PostCard already mutates the Post object in place (like,
@@ -186,6 +190,7 @@ class TimelinePageState extends State<TimelinePage> {
                   posts.removeWhere((p) => p.id == post.id);
                   setState(() {});
                 },
+                ),
               );
             },
           ),

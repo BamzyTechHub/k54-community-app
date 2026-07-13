@@ -5,6 +5,7 @@ import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/core/widgets/member_card.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
@@ -326,7 +327,11 @@ class _MembersPageState extends State<MembersPage> {
 
     Widget tile(int index) {
       final member = members[index];
-      return _memberCard(id: member.id, name: member.name, avatarUrl: member.avatarUrl);
+      return FadeSlideIn(
+        key: ValueKey(member.id),
+        delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+        child: _memberCard(id: member.id, name: member.name, avatarUrl: member.avatarUrl),
+      );
     }
 
     return RefreshIndicator(
@@ -383,7 +388,11 @@ class _MembersPageState extends State<MembersPage> {
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final f = _connections[index];
-          return _memberCard(id: f.otherUserId, name: f.otherUserName, avatarUrl: f.otherUserAvatar);
+          return FadeSlideIn(
+            key: ValueKey(f.otherUserId),
+            delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+            child: _memberCard(id: f.otherUserId, name: f.otherUserName, avatarUrl: f.otherUserAvatar),
+          );
         },
       ),
     );

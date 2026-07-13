@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
 /// Matches the "member comp" card from the K54 Figma file (used on both
 /// the Members screen, node 55:1914, and the Profile/My Connections tab,
@@ -33,8 +34,9 @@ class MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TapScale(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.groupCardBackground,
@@ -89,7 +91,7 @@ class MemberCard extends StatelessWidget {
 
   Widget _action(IconData icon, VoidCallback onTap) {
     return Expanded(
-      child: GestureDetector(
+      child: TapScale(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),

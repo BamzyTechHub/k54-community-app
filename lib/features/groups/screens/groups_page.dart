@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/features/groups/controllers/groups_controller.dart';
 import 'package:k54_mobile/features/groups/models/group_model.dart';
 import 'package:k54_mobile/features/groups/repositories/groups_repository.dart';
@@ -408,7 +409,11 @@ class _GroupsPageState extends State<GroupsPage> {
       return ListView.separated(
         itemCount: groups.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
-        itemBuilder: (context, index) => _embeddedGroupTile(groups[index]),
+        itemBuilder: (context, index) => FadeSlideIn(
+          key: ValueKey(groups[index].id),
+          delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+          child: _embeddedGroupTile(groups[index]),
+        ),
       );
     }
 
@@ -426,7 +431,11 @@ class _GroupsPageState extends State<GroupsPage> {
               child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green)),
             );
           }
-          return _groupCard(context, groups[index]);
+          return FadeSlideIn(
+            key: ValueKey(groups[index].id),
+            delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+            child: _groupCard(context, groups[index]),
+          );
         },
       ),
     );

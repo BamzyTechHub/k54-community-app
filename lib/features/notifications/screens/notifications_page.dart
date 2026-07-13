@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/features/notifications/controllers/notifications_controller.dart';
 import 'package:k54_mobile/features/notifications/models/app_notification.dart';
 
@@ -102,7 +103,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
       onRefresh: _controller.load,
       child: ListView.builder(
         itemCount: _controller.notifications.length,
-        itemBuilder: (context, index) => _notificationTile(_controller.notifications[index]),
+        itemBuilder: (context, index) {
+          final notification = _controller.notifications[index];
+          return FadeSlideIn(
+            key: ValueKey(notification.id),
+            delay: Duration(milliseconds: 40 * index.clamp(0, 6)),
+            child: _notificationTile(notification),
+          );
+        },
       ),
     );
   }

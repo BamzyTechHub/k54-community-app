@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/features/friends/controllers/friends_controller.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
@@ -282,7 +283,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   }
 
   Widget _friendTile(Friendship f) {
-    return GestureDetector(
+    return TapScale(
       onTap: () => _openProfile(f.otherUserId),
       onLongPress: () => _removeFriendConfirm(f),
       child: Container(
