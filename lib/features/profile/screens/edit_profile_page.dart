@@ -5,6 +5,7 @@ import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 import 'package:k54_mobile/features/profile/screens/change_profile_photo_page.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_fields_form.dart';
 
@@ -149,7 +150,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: SafeArea(child: Center(child: CircularProgressIndicator())));
+      return const Scaffold(body: SafeArea(child: Center(child: CircularProgressIndicator(color: AppColors.green))));
     }
 
     return Scaffold(
@@ -177,12 +178,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Center(
                 child: Stack(
                   children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                      child: _avatarUrl.isEmpty ? const Icon(Icons.person, size: 48) : null,
-                    ),
+                    UserAvatar(imageUrl: _avatarUrl, name: nameController.text, radius: 60),
                     Positioned(
                       right: 4,
                       bottom: 4,
@@ -217,26 +213,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 onPressed: _save,
               ),
               const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  height: 55,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: AppColors.green, width: 1.5),
-                  ),
-                  child: Center(
-                    child: Text(
-                      "Cancel",
-                      style: GoogleFonts.lato(
-                        color: AppColors.green,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+              PrimaryButton(
+                label: "Cancel",
+                outline: true,
+                onPressed: () => Navigator.pop(context),
               ),
               const SizedBox(height: 20),
             ],

@@ -3,10 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 
-/// Compact pill button (icon optional) sharing the same real site colors
-/// and press feedback as PrimaryButton, for places that need several
+/// Compact pill button (icon optional) for places that need several
 /// buttons side by side rather than one full-width button - Profile's
-/// Follow/Message/Connect row, AI Assistant's quick-action chips, etc.
+/// Follow/Message/Connect row, Groups' Join/Joined, AI Assistant's
+/// quick-action chips, etc. Uses [AppColors.pillRegularBg]/[pillActiveBg]
+/// - a distinct color scheme from [PrimaryButton], confirmed by a direct
+/// Figma export showing the two components use different colors.
 class PressablePill extends StatefulWidget {
   final String label;
   final IconData? icon;
@@ -41,11 +43,9 @@ class _PressablePillState extends State<PressablePill> {
   Widget build(BuildContext context) {
     final active = _pressed && !widget.loading;
     final bg = active
-        ? AppColors.buttonPressedBg
-        : (widget.filled ? AppColors.buttonRegularBg : Colors.transparent);
-    final fg = active
-        ? AppColors.buttonPressedText
-        : (widget.filled ? AppColors.buttonRegularText : AppColors.green);
+        ? AppColors.pillActiveBg
+        : (widget.filled ? AppColors.pillRegularBg : Colors.transparent);
+    final fg = widget.filled ? AppColors.pillText : (active ? AppColors.pillText : AppColors.green);
 
     return GestureDetector(
       onTapDown: (_) => _setPressed(true),

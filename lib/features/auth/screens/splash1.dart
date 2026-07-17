@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/auth/screens/login.dart';
 import 'package:k54_mobile/features/auth/screens/onboarding1.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
@@ -71,87 +72,24 @@ class _Splash1State extends State<Splash1> {
         body: SizedBox.shrink(),
       );
     }
-    return Scaffold(
-      backgroundColor: Colors.white,
-
-      body: Stack(
-        children: [
-
-         // Top left gold glow
-Positioned(
-  top: -60,
-  left: -90,
-  child: Container(
-    width: 420,
-height: 420,
-    decoration: const BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          Color(0x70AB8000),
-          Colors.transparent,
-        ],
+    return Container(
+      // Smooth diagonal cream-to-white gradient - matches the "splash 2"
+      // Figma frame exactly. Was 4 separate blurred radial "glow" circles
+      // positioned at the corners, which is a visually different effect
+      // (soft spotlights vs. a flat diagonal wash) - replaced rather than
+      // layered on top of, since Figma shows one smooth gradient, not glows.
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFCF8ED), Colors.white],
+        ),
       ),
-    ),
-  ),
-),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
 
-// Top right green glow
-Positioned(
-  top: -140,
-  right: -70,
-  child: Container(
-    width: 420,
-height: 420,
-    decoration: const BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          Color(0x606C9B6E),
-          Colors.transparent,
-        ],
-      ),
-    ),
-  ),
-),
-
-// Bottom left gold glow
-Positioned(
-  bottom: -100,
-  left: -90,
-  child: Container(
-    width: 420,
-    height: 420,
-    decoration: const BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          Color(0x40AB8000),
-          Colors.transparent,
-        ],
-      ),
-    ),
-  ),
-),
-
-// Bottom right green glow
-Positioned(
-  bottom: -100,
-  right: -70,
-  child: Container(
-    width: 420,
-    height: 420,
-    decoration: const BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          Color(0x55008000),
-          Colors.transparent,
-        ],
-      ),
-    ),
-  ),
-),
+        body: Stack(
+          children: [
 
           // Main content
           SafeArea(
@@ -170,7 +108,10 @@ Positioned(
                                 fit: BoxFit.contain,
                               ), 
 
-                  const SizedBox(height: 150),
+                  // 20px, not 150 - in the "splash 2" Figma frame the
+                  // wordmark and subtitle sit close together as one
+                  // cohesive lockup, not separated by a huge gap.
+                  const SizedBox(height: 20),
 
                   // Text
                   const Text(
@@ -187,47 +128,20 @@ Positioned(
 
                   const Spacer(),
 
-                  // Proceed button
-                 SizedBox(
-  width: double.infinity,
-  height: 55,
-
-  child: GestureDetector(
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const Onboarding1(),
-        ),
-      );
-    },
-
-    child: Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF008000),
-            Color(0xFFAB8000),
-            Color(0xFF008000),
-          ],
-        ),
-      ),
-
-      child: const Center(
-        child: Text(
-          "Proceed",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    ),
-  ),
-),
+                  // Proceed button - solid light-green pill (PrimaryButton),
+                  // matching "splash 2" exactly. Was a custom green-gold-
+                  // green gradient button; Figma's Proceed button is flat,
+                  // not gradient.
+                  PrimaryButton(
+                    label: "Proceed",
+                    height: 55,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const Onboarding1(),
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 40),
                 ],
@@ -236,6 +150,7 @@ Positioned(
           ),
         ],
       ),
+    ),
     );
   }
 }

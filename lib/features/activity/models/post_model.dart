@@ -18,6 +18,12 @@ bool isPinned;
 final String privacy;
 final String previewData;
 bool isFavorited;
+  /// The reaction type id (635=Like, 636=Love, 637=Laugh, 638=Angry,
+  /// 639=Sad, 640=Wow) the current user gave via the real BuddyBoss
+  /// reactions system, or 0 if none. Confirmed live on `reacted_id` in the
+  /// activity endpoint's schema 2026-07-17 - a separate, richer system
+  /// from the older favorite/unfavorite boolean above.
+  int reactedId;
 final bool canEdit;
 final bool canDelete;
   /// No confirmed server field distinguishes "owner closed comments on
@@ -47,6 +53,7 @@ final bool canDelete;
     required this.privacy,
     required this.previewData,
     required this.isFavorited,
+    this.reactedId = 0,
     required this.canEdit,
     required this.canDelete,
     this.commentsClosed = false,
@@ -92,6 +99,27 @@ if (image.isEmpty &&
   image = json["activity_data"]["bb_activity_post_feature_image"]["image"];
 }
 
+    // `reacted_counts` is confirmed to exist on the live activity schema
+    // (type: array) but its exact per-entry shape wasn't captured against
+    // a real authenticated response, so this parses defensively across
+    // the field names a count entry would plausibly use and falls back to
+    // the older, confirmed `favorite_count` if nothing parses - never
+    // silently shows 0 just because this richer field's shape guess was
+    // wrong.
+    int reactionTotal = 0;
+    final rawCounts = json["reacted_counts"];
+    if (rawCounts is List) {
+      for (final entry in rawCounts) {
+        if (entry is Map) {
+          final c = entry["count"] ?? entry["total"] ?? entry["reaction_count"];
+          reactionTotal += int.tryParse('$c') ?? 0;
+        } else if (entry is num) {
+          reactionTotal += entry.toInt();
+        }
+      }
+    }
+    final favoriteCount = int.tryParse('${json["favorite_count"] ?? 0}') ?? 0;
+
     return Post(
       id: json["id"].toString(),
       userId: json["user_id"]?.toString() ?? "",
@@ -100,13 +128,14 @@ if (image.isEmpty &&
       profileImage: avatar,
       caption: caption,
       postImage: image,
-      likes: json["favorite_count"] ?? 0,
+      likes: reactionTotal > 0 ? reactionTotal : favoriteCount,
       comments: json["comment_count"] ?? 0,
       shares: json["share_count"] ?? 0,
       createdAt:
       DateTime.tryParse(json["date"] ?? "") ?? DateTime.now(),
       time: json["date"] ?? "",
       isFavorited: json["favorited"] ?? false,
+      reactedId: int.tryParse('${json["reacted_id"] ?? 0}') ?? 0,
       canEdit: json["can_edit"] ?? false,
       canDelete: json["can_delete"] ?? false,
 

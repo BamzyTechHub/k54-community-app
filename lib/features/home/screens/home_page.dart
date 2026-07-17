@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/utils/k54_route.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 import 'package:k54_mobile/features/activity/screens/timeline_page.dart';
 import 'package:k54_mobile/features/communication/communication_navigation.dart';
 import 'package:k54_mobile/features/activity/screens/create_post_page.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
-import 'package:k54_mobile/features/notifications/screens/notifications_page.dart';
 import 'package:k54_mobile/features/notifications/repositories/notifications_repository.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/core/widgets/unread_badge.dart';
@@ -66,210 +71,145 @@ class _HomePageState extends State<HomePage> {
 
           children: [
 
-            // Header
+            // Header - exact measurements pulled from the K54 HOME PAGE
+            // Figma frame (node 571:714, "Chip") via the REST API
+            // 2026-07-16: 29px avatar, 24px-tall pill search bar
+            // (fill #FCF8ED, text/icon #1A1A1A - NOT the tan/gold read
+            // from the old stale file this used to cite), 24px icons,
+            // 19px gaps between every element. Supersedes the taller,
+            // tan/gold header used previously.
             Padding(
 
-              padding: const EdgeInsets.all(15),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
 
 
               child: Row(
 
                 children: [
 
-                  GestureDetector(
-  onTap: () {
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-       builder: (context) => ProfilePage(),
-      ),
-    );
-
-  },
-
-  child: const CircleAvatar(
-    radius: 22,
-    backgroundColor: Colors.green,
-    child: Icon(
-      Icons.person,
-      color: Colors.white,
-    ),
-  ),
-),
-
-
-                  const SizedBox(width: 10),
-
-
-                  // Search Bar
-                  Expanded(
-
-                    child: Container(
-
-                      height: 45,
-
-
-                      decoration: BoxDecoration(
-
-                        color: Colors.grey.shade200,
-
-                        borderRadius: BorderRadius.circular(25),
-
-                      ),
-
-
-                      child: TextField(
-
-                        readOnly: true,
-
-                        onTap: () {
-
-                          Navigator.push(
-
-                            context,
-
-                            MaterialPageRoute(
-
-                              builder: (context) => const SearchResultsPage(),
-
-                            ),
-
-                          );
-
-                        },
-
-                        decoration: const InputDecoration(
-
-                          hintText: "Search",
-
-                          prefixIcon: Icon(Icons.search),
-
-                          border: InputBorder.none,
-
-                        ),
-
-                      ),
-
+                  TapScale(
+                    onTap: () {
+                      Navigator.push(context, k54Route(ProfilePage()));
+                    },
+                    borderRadius: BorderRadius.circular(14.5),
+                    child: FutureBuilder(
+                      future: AuthService().getCurrentUser(),
+                      builder: (context, snapshot) {
+                        String avatar = "";
+                        String name = "";
+                        if (snapshot.hasData) {
+                          final user = (snapshot.data as dynamic).data;
+                          avatar = user["avatar_urls"]?["thumb"] ??
+                              user["avatar_urls"]?["full"] ??
+                              "";
+                          name = user["name"] ?? "";
+                        }
+                        return UserAvatar(imageUrl: avatar, name: name, radius: 14.5);
+                      },
                     ),
-
                   ),
 
+                  const SizedBox(width: 19),
 
-                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TapScale(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SearchResultsPage(),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        height: 24,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFCF8ED),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            // Exact SVG export of node 571:803 ("Search
+                            // Icon"), not a Material Icon approximation -
+                            // pulled directly from the Figma images API
+                            // 2026-07-17.
+                            SvgPicture.asset("assets/icons/icon_search.svg", width: 20, height: 20),
+                            const SizedBox(width: 4),
+                            const Text(
+                              "Search",
+                              style: TextStyle(color: AppColors.jetBlack, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
+                  const SizedBox(width: 19),
 
-                 // Create Post
-IconButton(
+                  // Create Post - gold pencil, matches "tabler:edit-filled"
+                  TapScale(
+                    onTap: () async {
+                      final created = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CreatePostPage(),
+                        ),
+                      );
+                      if (created == true && mounted) {
+                        _timelineKey.currentState?.refreshTimeline();
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: SvgPicture.asset("assets/icons/icon_edit.svg", width: 24, height: 24),
+                  ),
 
-  onPressed: () async {
+                  const SizedBox(width: 19),
 
-    final created = await Navigator.push<bool>(
-  context,
-  MaterialPageRoute(
-    builder: (_) => const CreatePostPage(),
-  ),
-);
+                  // Messages - matches "cryptocurrency:chat", 24px gold.
+                  // The bell that used to sit here is removed - it isn't
+                  // part of this frame at all. NOT relocated to
+                  // ProfileMenu or anywhere else - that menu is itself a
+                  // confirmed Figma component with a fixed item set, and
+                  // adding to it would be the same "invent UI not in
+                  // Figma" mistake. NotificationsPage is currently
+                  // unreachable from any nav point - flagged to the user
+                  // rather than guessed at.
+                  TapScale(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CommunicationNavigation(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: UnreadBadge(
+                      count: MessagingRepository.instance.unreadCount,
+                      child: SvgPicture.asset("assets/icons/icon_chat.svg", width: 24, height: 24),
+                    ),
+                  ),
 
-if (created == true && mounted) {
-  _timelineKey.currentState?.refreshTimeline();
-}
-  },
+                  const SizedBox(width: 19),
 
-  icon: const Icon(
-
-    Icons.add_box_outlined,
-
-    size: 28,
-
-  ),
-
-),
-
-// Notifications
-IconButton(
-
-  onPressed: () {
-
-    Navigator.push(
-
-      context,
-
-      MaterialPageRoute(
-
-        builder: (context) =>
-            const NotificationsPage(),
-
-      ),
-
-    );
-
-  },
-
-  icon: UnreadBadge(
-    count: NotificationsRepository.instance.unreadCount,
-    child: const Icon(
-      Icons.notifications_outlined,
-      size: 28,
-    ),
-  ),
-
-),
-
-// Messages
-IconButton(
-
-  onPressed: () {
-
-    Navigator.push(
-
-      context,
-
-      MaterialPageRoute(
-
-        builder: (context) =>
-            const CommunicationNavigation(),
-
-      ),
-
-    );
-
-  },
-
-  icon: UnreadBadge(
-    count: MessagingRepository.instance.unreadCount,
-    child: const Icon(
-      Icons.chat_bubble_outline,
-      size: 28,
-    ),
-  ),
-
-),
-
-IconButton(
-
-  onPressed: () {
-
-    // The real K54 store (Kafe' 54 merch on Printify) - confirmed live
-    // and reachable 2026-07-10. Opens externally rather than an in-app
-    // WebView, since an in-app WebView's back button was reportedly
-    // misbehaving before.
-    launchUrl(
-      Uri.parse("https://kafe-54.printify.me/"),
-      mode: LaunchMode.externalApplication,
-    );
-
-  },
-
-  icon: const Icon(
-
-    Icons.shopping_bag_outlined,
-
-    size: 28,
-
-  ),
-
-),
+                  // Shop - matches "maki:shop", 24px gold.
+                  TapScale(
+                    onTap: () {
+                      // The real K54 store (Kafe' 54 merch on Printify) - confirmed live
+                      // and reachable 2026-07-10. Opens externally rather than an in-app
+                      // WebView, since an in-app WebView's back button was reportedly
+                      // misbehaving before.
+                      launchUrl(
+                        Uri.parse("https://kafe-54.printify.me/"),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: SvgPicture.asset("assets/icons/icon_shop.svg", width: 24, height: 24),
+                  ),
                 ],
 
               ),

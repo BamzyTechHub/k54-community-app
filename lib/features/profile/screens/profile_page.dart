@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:k54_mobile/features/profile/screens/edit_profile_page.dart';
-import 'package:k54_mobile/features/profile/screens/change_email_page.dart';
-import 'package:k54_mobile/features/profile/screens/change_password_page.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/features/profile/screens/settings_page.dart';
-import 'package:k54_mobile/features/profile/screens/logout_page.dart';
+import 'package:k54_mobile/features/profile/screens/email_invites_page.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_header.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_stats.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_actions.dart';
@@ -16,9 +14,15 @@ import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
+import 'package:k54_mobile/features/messaging/widgets/messages_inbox_list.dart';
+import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/utils/k54_route.dart';
+import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
+import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/member_card.dart';
 
 
@@ -42,17 +46,44 @@ String userImage = "";
 int followers = 0;
 int following = 0;
 int posts = 0;
-    int selectedTab = 0;
+
+// The sliding tab-window state - see ProfileTabs' doc comment for the
+// full model. Starts on the base 3; picking a hidden tab from "..."
+// slides it into this window and makes it active.
+List<String> _visibleTabs = List.of(ProfileTabs.baseTabs);
+String _activeTab = ProfileTabs.baseTabs.first;
 
 List<Friendship> _connections = [];
 bool _loadingConnections = true;
 String? _connectionsError;
+
+// Hides the bottom nav on scroll-down, brings it back on scroll-up -
+// the user explicitly asked for it not to just sit there as a static
+// bar. Threshold-based (not every pixel) so tiny scroll jitter doesn't
+// flicker it.
+final ScrollController _scrollController = ScrollController();
+bool _navVisible = true;
+double _lastScrollOffset = 0;
+static const _scrollHideThreshold = 12.0;
 
 @override
 void initState() {
   super.initState();
   loadUserData();
   _loadConnections();
+  _scrollController.addListener(_onScroll);
+}
+
+void _onScroll() {
+  final offset = _scrollController.offset;
+  final delta = offset - _lastScrollOffset;
+  if (delta.abs() < _scrollHideThreshold) return;
+
+  final shouldBeVisible = delta < 0; // scrolling up -> show, down -> hide
+  if (shouldBeVisible != _navVisible) {
+    setState(() => _navVisible = shouldBeVisible);
+  }
+  _lastScrollOffset = offset;
 }
 
 Future<void> _loadConnections() async {
@@ -69,8 +100,15 @@ Future<void> _loadConnections() async {
   }
 }
 
+@override
+void dispose() {
+  _scrollController.removeListener(_onScroll);
+  _scrollController.dispose();
+  super.dispose();
+}
+
 void _openProfile(String userId) {
-  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(userId: userId)));
+  openProfile(context, userId);
 }
 
 Future<void> _openMessage(String userId) async {
@@ -79,7 +117,7 @@ Future<void> _openMessage(String userId) async {
     if (!mounted) return;
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ChatPage(threadId: thread.id, thread: thread)),
+      k54Route(ChatPage(threadId: thread.id, thread: thread)),
     );
   } catch (e) {
     if (!mounted) return;
@@ -91,6 +129,33 @@ void _comingSoon(String feature) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text("$feature is coming soon")),
   );
+}
+
+Future<void> _blockMember(String id, String name) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      shape: K54Dialog.shape,
+      title: const Text("Block member"),
+      content: Text("Block $name? They won't be able to message you."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text("Block", style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  try {
+    await MessagingRepository.instance.blockUser(id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name has been blocked")));
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't block $name: $e")));
+  }
 }
 
 Widget _buildConnectionsTab() {
@@ -136,7 +201,7 @@ Widget _buildConnectionsTab() {
         name: f.otherUserName,
         avatarUrl: f.otherUserAvatar,
         onTap: () => _openProfile(f.otherUserId),
-        onBlock: () => _comingSoon("Block"),
+        onBlock: () => _blockMember(f.otherUserId, f.otherUserName),
         onConnect: () => _comingSoon("Connect"),
         onMessage: () => _openMessage(f.otherUserId),
         onCall: () => _comingSoon("Voice call"),
@@ -189,6 +254,7 @@ Future loadUserData() async {
     ? await AuthService().getCurrentUser()
     : await AuthService().getMember(widget.userId!);
     final user = response.data;
+    final resolvedUserId = widget.userId ?? (user["id"]?.toString() ?? "");
     setState(() {
   userName = user["name"] ?? "";
   userEmail = user["user_login"] ?? "";
@@ -201,18 +267,59 @@ Future loadUserData() async {
       "K54 Community Member";
   followers = user["followers"] ?? 0;
   following = user["following"] ?? 0;
-  posts = user["total_post_count"] ?? 0;
 });
+    // Separate call, not a field on the member response - see
+    // BuddyBossService.getUserPostCount's doc comment for why
+    // total_post_count never worked.
+    if (resolvedUserId.isNotEmpty) {
+      try {
+        final count = await BuddyBossService().getUserPostCount(resolvedUserId);
+        if (mounted && count != null) setState(() => posts = count);
+      } catch (_) {
+        // Non-fatal - stat just stays at 0 rather than blocking the rest
+        // of the profile from loading.
+      }
+    }
   } catch (e) {
     debugPrint(e.toString());
   }
 }
+  void _onTabTapped(String tab) {
+    setState(() => _activeTab = tab);
+  }
+
+  /// Called when a hidden tab is picked from the "..." menu. Account
+  /// Settings is the one exception that pushes a real page instead of
+  /// sliding into the tab window - see ProfileTabs' doc comment.
+  void _onMenuSelected(String label) {
+    if (label == "Account Settings") {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+      return;
+    }
+    setState(() {
+      _visibleTabs = [..._visibleTabs.sublist(1), label];
+      _activeTab = label;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // Not one of the 5 tracked bottom-nav destinations, so no icon
+      // claims "active" - an out-of-range index keeps every icon in its
+      // plain inactive state rather than falsely highlighting one.
+      // Slides away on scroll-down, slides back on scroll-up (see
+      // _onScroll) instead of sitting there as a static bar.
+      bottomNavigationBar: AnimatedSlide(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        offset: _navVisible ? Offset.zero : const Offset(0, 1),
+        child: const K54BottomNavigation(currentIndex: -1),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _scrollController,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 20,
@@ -234,6 +341,16 @@ Future loadUserData() async {
                         size: 28,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    // Small page-level label above the profile card,
+                    // matching the current tab (Timeline/My Connections/
+                    // live Video) - same convention as the small grey
+                    // title Messages/Members/Groups show at their own
+                    // page top.
+                    Text(
+                      _activeTab,
+                      style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 15),
@@ -247,7 +364,7 @@ ProfileStats(
   following: following,
   posts: posts,
 ),
-               
+
      const SizedBox(height: 20),
 ProfileActions(
   isCurrentUser: widget.userId == null,
@@ -255,77 +372,30 @@ ProfileActions(
 ),
 const SizedBox(height: 20),
 ProfileTabs(
-  selectedIndex: selectedTab,
-  onTabChanged: (index) {
-    setState(() {
-      selectedTab = index;
-    });
-  },
-   onMenuPressed: (value) async {
-  switch (value) {
-    case "edit":
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const EditProfilePage(),
-        ),
-      );
-      break;
-    case "email":
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ChangeEmailPage(),
-        ),
-      );
-      break;
-    case "password":
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ChangePasswordPage(),
-        ),
-      );
-      break;
-    case "settings":
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const SettingsPage(),
-        ),
-      );
-      break;
-    case "logout":
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const LogoutPage(),
-        ),
-      );
-      break;
-  }
-},
+  visibleTabs: _visibleTabs,
+  activeTab: _activeTab,
+  onTabChanged: _onTabTapped,
+  onMenuPressed: _onMenuSelected,
 ),
 const SizedBox(height: 20),
-if (selectedTab == 0)
+if (_activeTab == "Timeline")
    SizedBox(
     height: _embeddedTabHeight(context),
     child: TimelinePage(
     userId: widget.userId,
 ),
   ),
-
-if (selectedTab == 1) _buildConnectionsTab(),
-if (selectedTab == 2) _liveVideoTab(context),
-if (selectedTab == 3)
+if (_activeTab == "My Connections") _buildConnectionsTab(),
+if (_activeTab == "live Video") _liveVideoTab(context),
+if (_activeTab == "Groups")
   SizedBox(
     height: _embeddedTabHeight(context),
     child: GroupsPage(embedded: true),
   ),
-if (selectedTab == 4) const ProfileCoursesTab(),
-if (selectedTab == 5) const ProfileDocumentsTab(),
-if (selectedTab == 6) const ProfileEmptyTab(icon: Icons.quiz_outlined, message: "No quizzes yet"),
-if (selectedTab == 7) const ProfileOrdersTab(),
+if (_activeTab == "Messages") const MessagesInboxList(),
+if (_activeTab == "Courses") const ProfileCoursesTab(),
+if (_activeTab == "Documents") const ProfileDocumentsTab(),
+if (_activeTab == "Email Invites") const EmailInvitesForm(),
 const SizedBox(height: 20),
               ],
             ),

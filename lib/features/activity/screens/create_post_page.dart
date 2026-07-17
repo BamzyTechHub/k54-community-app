@@ -4,9 +4,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/ai/screens/ai_page.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 
 class CreatePostPage extends StatefulWidget {
   /// When set, this screen edits [editingPost] instead of composing a new
@@ -35,11 +38,13 @@ File? selectedImage;
 
 bool isLoading = false;
 
-bool schedulePost = false;
-
-bool uploadHighQuality = true;
-
 bool turnOffComments = false;
+
+// Real, functional toggle - controls image_picker's imageQuality param
+// (100 vs the default 85), not a fake switch. The broader image-upload
+// pipeline isn't wired to the API yet (see the dialog in publishPost),
+// but this itself has no backend dependency at all.
+bool uploadHighestQuality = false;
 
   @override
   void initState() {
@@ -48,6 +53,10 @@ bool turnOffComments = false;
     if (editing != null) {
       postController.text = editing.caption;
     }
+    // Drives the Publish button's disabled/greyed state as the user types
+    // - matches the Figma screenshot showing Publish greyed out while the
+    // composer is empty.
+    postController.addListener(() => setState(() {}));
   }
 
   @override
@@ -61,9 +70,50 @@ void _comingSoon(String feature) {
   );
 }
 
+Widget _settingsToggle({
+  required IconData icon,
+  required String label,
+  required bool value,
+  required ValueChanged<bool> onChanged,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.jetBlack),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: const TextStyle(fontSize: 14)),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeTrackColor: AppColors.green,
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _mediaBadge({required IconData icon, required VoidCallback onTap}) {
+  return TapScale(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
+    child: Container(
+      width: 32,
+      height: 32,
+      decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+      child: Icon(icon, color: Colors.white, size: 16),
+    ),
+  );
+}
+
 Future<void> pickImage() async {
   final image = await picker.pickImage(
     source: ImageSource.gallery,
+    // 100 when "Upload at highest quality" is on, otherwise image_picker's
+    // own default compression - a real effect, not a decorative switch.
+    imageQuality: uploadHighestQuality ? 100 : null,
   );
 
   if (image != null) {
@@ -88,6 +138,7 @@ Future<void> pickImage() async {
     final proceedWithoutImage = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: K54Dialog.shape,
         title: const Text("Photo not supported yet"),
         content: const Text(
           "Attaching a photo isn't available yet. Publishing now will "
@@ -206,6 +257,7 @@ Widget build(BuildContext context) {
   future: AuthService().getCurrentUser(),
   builder: (context, snapshot) {
     String avatar = "";
+    String name = "";
 
     if (snapshot.hasData) {
       final user = (snapshot.data as dynamic).data;
@@ -214,15 +266,10 @@ Widget build(BuildContext context) {
           user["avatar_urls"]?["thumb"] ??
           user["avatar_urls"]?["full"] ??
           "";
+      name = user["name"] ?? "";
     }
 
-    return CircleAvatar(
-      radius: 18,
-      backgroundImage: avatar.isNotEmpty
-          ? NetworkImage(avatar)
-          : const AssetImage("assets/images/member1.png")
-              as ImageProvider,
-    );
+    return UserAvatar(imageUrl: avatar, name: name, radius: 18);
   },
 ),
 
@@ -264,6 +311,27 @@ Widget build(BuildContext context) {
                     ),
 
                   ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // "Go Live" - visible in Figma (node 40:712) next to the
+                // privacy selector, but no live-streaming backend is
+                // confirmed, so this is a coming-soon stub like the other
+                // unwired media actions on this screen.
+                TapScale(
+                  onTap: () => _comingSoon("Going live"),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Go Live",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.videocam, color: Colors.red.shade400, size: 20),
+                    ],
                   ),
                 ),
 
@@ -339,7 +407,9 @@ Row(
 
     // Create with AI Button - routes to the real, working AI Assistant
     // rather than doing nothing, since that's genuine functionality this
-    // app already has.
+    // app already has. Green (not purple) - matches the screenshot and
+    // AppColors.green, the color already used for every other AI-related
+    // accent in the app (ai_page.dart's own progress indicator/links).
     TapScale(
       onTap: () => Navigator.push(
         context,
@@ -356,7 +426,7 @@ Row(
       decoration: BoxDecoration(
 
         border: Border.all(
-          color: Colors.purple.shade200,
+          color: AppColors.green,
         ),
 
         borderRadius: BorderRadius.circular(20),
@@ -370,15 +440,15 @@ Row(
           Icon(
             Icons.auto_awesome,
             size: 16,
-            color: Colors.purple,
+            color: AppColors.green,
           ),
 
           SizedBox(width: 5),
 
           Text(
-            "Create post with AI",
+            "Generate post with AI",
             style: TextStyle(
-              color: Colors.purple,
+              color: AppColors.green,
               fontSize: 12,
             ),
           ),
@@ -390,52 +460,19 @@ Row(
       ),
     ),
 
+    const Spacer(),
 
-    // Video
-    IconButton(
-
-      onPressed: () => _comingSoon("Attaching a video"),
-
-      icon: const Icon(
-        Icons.play_circle_outline,
-      ),
-
-    ),
-
-
-    // Image
-    IconButton(
-
-      onPressed: pickImage,
-
-      icon: const Icon(
-        Icons.camera_alt_outlined,
-      ),
-
-    ),
-
-
-    // Attachment
-    IconButton(
-
-      onPressed: () => _comingSoon("Attaching a file"),
-
-      icon: const Icon(
-        Icons.attach_file,
-      ),
-
-    ),
-
-
-    // Emoji
-    IconButton(
-
-      onPressed: () => _comingSoon("Emoji picker"),
-
-      icon: const Icon(
-        Icons.sentiment_satisfied_alt_outlined,
-      ),
-
+    // Media actions - black circular badges matching Figma exactly
+    // (node 40:712), right-aligned next to the AI pill.
+    _mediaBadge(icon: Icons.play_arrow, onTap: () => _comingSoon("Attaching a video")),
+    const SizedBox(width: 8),
+    _mediaBadge(icon: Icons.camera_alt_outlined, onTap: pickImage),
+    const SizedBox(width: 8),
+    _mediaBadge(icon: Icons.attach_file, onTap: () => _comingSoon("Attaching a file")),
+    const SizedBox(width: 8),
+    _mediaBadge(
+      icon: Icons.sentiment_satisfied_alt_outlined,
+      onTap: () => _comingSoon("Emoji picker"),
     ),
 
   ],
@@ -444,73 +481,47 @@ Row(
 
 const SizedBox(height: 30),
 // ======================
-// Post Settings
+// Post Settings - grouped card matching the Figma "Create Post"
+// screenshot exactly (three stacked toggle rows in one rounded card),
+// restoring the Schedule/Upload-quality rows that were missing from an
+// earlier pass that only kept "Turn off commenting".
 // ======================
 
-SwitchListTile(
-
-  contentPadding: EdgeInsets.zero,
-
-  value: schedulePost,
-
-onChanged: (value) {
-  setState(() {
-    schedulePost = value;
-  });
-},
-  title: const Text(
-    "Schedule this post",
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+  decoration: BoxDecoration(
+    color: const Color(0xFFFCF8ED),
+    borderRadius: BorderRadius.circular(16),
   ),
-
-  secondary: const Icon(
-    Icons.calendar_today_outlined,
+  child: Column(
+    children: [
+      _settingsToggle(
+        icon: Icons.schedule_outlined,
+        label: "Schedule this post",
+        // No confirmed backend field exists for scheduling a BuddyBoss
+        // activity post (the live activity schema has no
+        // scheduled_date/publish_date field) - this stays honestly
+        // off and tells the user instead of silently pretending a
+        // scheduled post would actually be scheduled.
+        value: false,
+        onChanged: (_) => _comingSoon("Scheduling posts"),
+      ),
+      const Divider(height: 1),
+      _settingsToggle(
+        icon: Icons.high_quality_outlined,
+        label: "Upload at highest quality",
+        value: uploadHighestQuality,
+        onChanged: (value) => setState(() => uploadHighestQuality = value),
+      ),
+      const Divider(height: 1),
+      _settingsToggle(
+        icon: Icons.comments_disabled_outlined,
+        label: "Turn off commenting",
+        value: turnOffComments,
+        onChanged: (value) => setState(() => turnOffComments = value),
+      ),
+    ],
   ),
-
-),
-
-
-SwitchListTile(
-
-  contentPadding: EdgeInsets.zero,
-
-value: uploadHighQuality,
-
-onChanged: (value) {
-  setState(() {
-    uploadHighQuality = value;
-  });
-},
-
-  title: const Text(
-    "Upload at highest quality",
-  ),
-
-  secondary: const Icon(
-    Icons.high_quality_outlined,
-  ),
-
-),
-
-
-SwitchListTile(
-
-  contentPadding: EdgeInsets.zero,
-
- value: turnOffComments,
-
-onChanged: (value) {
-  setState(() {
-    turnOffComments = value;
-  });
-},
-  title: const Text(
-    "Turn off commenting",
-  ),
-
-  secondary: const Icon(
-    Icons.comments_disabled_outlined,
-  ),
-
 ),
 
 
@@ -523,29 +534,10 @@ Row(
   children: [
 
     Expanded(
-  child: TapScale(
-    onTap: () => _comingSoon("Saving drafts"),
-    borderRadius: BorderRadius.circular(30),
-    child: Container(
-      height: 55,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color(0xFF008000),
-          width: 2,
-        ),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: const Center(
-        child: Text(
-          "Save Draft",
-          style: TextStyle(
-            color: Color(0xFF008000),
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    ),
+  child: PrimaryButton(
+    label: "Save Draft",
+    outline: true,
+    onPressed: () => _comingSoon("Saving drafts"),
   ),
 ),
 
@@ -553,12 +545,16 @@ Row(
     const SizedBox(width: 20),
 
 
-    // Publish Button
+    // Publish Button - greyed/disabled while there's nothing to publish,
+    // matching the Figma screenshot's Publish state with an empty
+    // composer.
      Expanded(
   child: PrimaryButton(
     label: _isEditing ? "Save Changes" : "Publish",
     loading: isLoading,
-    onPressed: publishPost,
+    onPressed: (postController.text.trim().isEmpty && selectedImage == null)
+        ? null
+        : publishPost,
   ),
 ),
   ],

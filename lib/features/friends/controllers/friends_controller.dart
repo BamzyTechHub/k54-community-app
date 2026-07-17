@@ -74,9 +74,9 @@ class FriendsListController extends ChangeNotifier {
 }
 
 /// Drives the Requests tab: incoming + outgoing pending friendships.
-/// Accept/reject/cancel actions are wired to the repository's stubbed
-/// methods and surface their UnimplementedError as a normal catchable
-/// error - see friends_api_service.dart for why they're stubbed.
+/// Accept/reject/cancel call the repository's real REST methods (wired
+/// 2026-07-15 - see friends_api_service.dart's doc comment for the
+/// field-name caveat) and surface any error as a normal catchable one.
 class FriendsRequestsController extends ChangeNotifier {
   final FriendsRepository _repo = FriendsRepository.instance;
 

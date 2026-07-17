@@ -55,35 +55,49 @@ class _CommunicationNavigationState extends State<CommunicationNavigation> {
     );
   }
 
+  // Corrected 2026-07-18 against a real device screenshot the user sent:
+  // the active tab is a light-green highlight (#E8EFE8 fill) with a
+  // top-edge-only green line and solid dark-olive-green icon/text - NOT
+  // the full 4-side box border + rainbow brand-gradient text this used to
+  // have. That was the same JSON-stroke misreading already caught and
+  // fixed on K54BottomNavigation (a `stroke` value on the active cell
+  // reads as a full border in the raw JSON but only renders as a top
+  // line in the real app) - this sub-tab bar had the identical bug and
+  // was missed in that earlier pass.
   Widget _tabSegment({required int index, required String label, required Widget icon}) {
     final isSelected = currentIndex == index;
+    final color = isSelected ? AppColors.green : const Color(0xFFB4D69E);
+    final content = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconTheme.merge(
+          data: IconThemeData(color: color),
+          child: icon,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            fontWeight: FontWeight.w400,
+            color: color,
+          ),
+        ),
+      ],
+    );
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => currentIndex = index),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.tabSelectedFill : Colors.transparent,
-            border: Border.all(
-              color: isSelected ? AppColors.tabSelectedBorder : AppColors.tabSelectedFill,
-              width: 1,
-            ),
+            color: isSelected ? const Color(0xFFE8EFE8) : Colors.transparent,
+            border: isSelected
+                ? const Border(top: BorderSide(color: AppColors.green, width: 2))
+                : null,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              icon,
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.jetBlack,
-                ),
-              ),
-            ],
-          ),
+          child: content,
         ),
       ),
     );

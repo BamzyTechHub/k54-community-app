@@ -1,18 +1,25 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
+import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 
 /// Matches the K54 Figma file's Change Profile Photo screen exactly
 /// (node 310:2239, rendered 2026-07-08).
 ///
-/// All four actions are stubbed: the avatar-upload endpoint
-/// (`/buddyboss/v1/members/{id}/avatar`) is confirmed to exist, but its
-/// multipart request shape has never been captured - the same blocker
-/// already documented for Activity Feed's featured-image upload. Sending
-/// a guessed multipart body risks a silent wrong upload, not just a
-/// visible error, so this shows "coming soon" rather than attempting one.
+/// Gallery upload and Remove Photo call the real
+/// `/buddyboss/v1/members/{id}/avatar` REST endpoint (confirmed
+/// registered via the site's public route index, 2026-07-14 - see
+/// FriendsApiService's doc comment on the exact-shape caveat). Camera
+/// capture and "Create Avatar" stay "coming soon": camera access needs
+/// its own platform permission flow and "Create Avatar" has no backend
+/// at all, neither is this endpoint's concern.
 class ChangeProfilePhotoPage extends StatefulWidget {
   const ChangeProfilePhotoPage({super.key});
 
@@ -22,7 +29,10 @@ class ChangeProfilePhotoPage extends StatefulWidget {
 
 class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
   String _avatarUrl = "";
+  String _name = "";
   bool _loading = true;
+  bool _uploading = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -36,6 +46,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
       _avatarUrl = response.data["avatar_urls"]?["full"] ??
           response.data["avatar_urls"]?["thumb"] ??
           "";
+      _name = response.data["name"] ?? "";
     } catch (_) {
       // Non-fatal - just show the placeholder icon instead.
     } finally {
@@ -47,6 +58,68 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("$feature is coming soon")),
     );
+  }
+
+  Future<void> _pickAndUpload() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+
+    setState(() => _uploading = true);
+    try {
+      final file = File(picked.path);
+      await FriendsRepository.instance.uploadAvatar(
+        fileBytes: await file.readAsBytes(),
+        filename: picked.name,
+      );
+      await _loadAvatar();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Profile photo updated")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't upload photo: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: K54Dialog.shape,
+        title: const Text("Remove photo"),
+        content: const Text("Remove your profile photo?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Remove", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _uploading = true);
+    try {
+      await FriendsRepository.instance.deleteAvatar();
+      await _loadAvatar();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Profile photo removed")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't remove photo: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
   }
 
   Widget _option({required IconData icon, required Color color, required String label, required VoidCallback onTap}) {
@@ -90,17 +163,12 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
               ),
               const SizedBox(height: 20),
               Center(
-                child: _loading
+                child: (_loading || _uploading)
                     ? const SizedBox(
                         height: 200,
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.green)),
                       )
-                    : CircleAvatar(
-                        radius: 100,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                        child: _avatarUrl.isEmpty ? const Icon(Icons.person, size: 80) : null,
-                      ),
+                    : UserAvatar(imageUrl: _avatarUrl, name: _name, radius: 100),
               ),
               const SizedBox(height: 30),
               _option(
@@ -113,7 +181,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
                 icon: Icons.image_outlined,
                 color: AppColors.green,
                 label: "Select from Gallery",
-                onTap: () => _comingSoon("Selecting from gallery"),
+                onTap: _uploading ? () {} : _pickAndUpload,
               ),
               _option(
                 icon: Icons.face_retouching_natural,
@@ -125,7 +193,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
                 icon: Icons.delete_outline,
                 color: Colors.red,
                 label: "Remove Photo",
-                onTap: () => _comingSoon("Removing your photo"),
+                onTap: _uploading ? () {} : _removePhoto,
               ),
             ],
           ),

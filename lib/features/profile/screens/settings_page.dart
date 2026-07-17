@@ -3,21 +3,35 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/features/profile/screens/about_app_page.dart';
 import 'package:k54_mobile/features/profile/screens/change_email_page.dart';
 import 'package:k54_mobile/features/profile/screens/change_password_page.dart';
 import 'package:k54_mobile/features/profile/screens/deactivate_account_page.dart';
+import 'package:k54_mobile/features/profile/screens/app_language_page.dart';
+import 'package:k54_mobile/features/profile/screens/app_permissions_page.dart';
+import 'package:k54_mobile/features/profile/screens/help_center_page.dart';
+import 'package:k54_mobile/features/profile/screens/login_activity_page.dart';
 import 'package:k54_mobile/features/profile/screens/logout_page.dart';
+import 'package:k54_mobile/features/profile/screens/notifications_settings_page.dart';
+import 'package:k54_mobile/features/profile/screens/privacy_settings_page.dart';
+import 'package:k54_mobile/features/profile/screens/two_factor_auth_page.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_actions.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_header.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
-/// Matches the K54 Figma file's Account Settings screen exactly (node
-/// 428:323, rendered 2026-07-08): the same profile header/action row as
-/// Timeline, then three grouped lists. Only Change Email, Change
-/// Password, and Log Out are wired to real, already-confirmed behavior;
-/// everything else here has no confirmed backend endpoint (some, like
-/// Deactivate Account, are high-risk destructive actions that shouldn't
-/// be guessed at regardless) so they show "coming soon" rather than a
-/// fake success.
+typedef _SettingsTile = ({IconData icon, String label, VoidCallback onTap});
+
+/// Matches the K54 Figma file's Account Settings screen (node 428:323):
+/// the same profile header/action row as Timeline, then three grouped
+/// lists, plus a real search-icon-in-header that filters the tiles below
+/// (confirmed against a fresh screenshot 2026-07-18 - the header does
+/// have a search icon, previously missing entirely here). Only Change
+/// Email, Change Password, and Log Out are wired to real, already-
+/// confirmed behavior; everything else here has no confirmed backend
+/// endpoint (some, like Deactivate Account, are high-risk destructive
+/// actions that shouldn't be guessed at regardless) so they show "coming
+/// soon" rather than a fake success.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -31,10 +45,33 @@ class _SettingsPageState extends State<SettingsPage> {
   String userImage = "";
   bool _loading = true;
 
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _searchExpanded = false;
+  String _query = "";
+
   @override
   void initState() {
     super.initState();
     _loadUser();
+    _searchController.addListener(() => setState(() => _query = _searchController.text.trim().toLowerCase()));
+    _searchFocusNode.addListener(() {
+      if (!_searchFocusNode.hasFocus && _searchController.text.isEmpty) {
+        setState(() => _searchExpanded = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _openSearch() {
+    setState(() => _searchExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _searchFocusNode.requestFocus());
   }
 
   Future<void> _loadUser() async {
@@ -52,17 +89,91 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$feature is coming soon")),
-    );
-  }
-
   void _logout() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const LogoutPage()),
     );
+  }
+
+  List<(String title, List<_SettingsTile> tiles)> _sections() {
+    return [
+      (
+        "Account Management / Settings",
+        [
+          (
+            icon: Icons.email_outlined,
+            label: "Change Email",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangeEmailPage())),
+          ),
+          (
+            icon: Icons.vpn_key_outlined,
+            label: "Change Password",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordPage())),
+          ),
+          (
+            icon: Icons.person_off_outlined,
+            label: "Deactivate Account",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DeactivateAccountPage())),
+          ),
+        ],
+      ),
+      (
+        "Security",
+        [
+          (
+            icon: Icons.shield_outlined,
+            label: "Two-Factor Authentication",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TwoFactorAuthPage())),
+          ),
+          (
+            icon: Icons.history,
+            label: "Login Activity",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginActivityPage())),
+          ),
+          (
+            icon: Icons.admin_panel_settings_outlined,
+            label: "App Permissions",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppPermissionsPage())),
+          ),
+        ],
+      ),
+      (
+        "Settings",
+        [
+          (
+            icon: Icons.notifications_none,
+            label: "Notification Settings",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsSettingsPage())),
+          ),
+          (
+            icon: Icons.lock_outline,
+            label: "Privacy Settings",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacySettingsPage())),
+          ),
+          (
+            icon: Icons.public,
+            label: "Language",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppLanguagePage())),
+          ),
+          (
+            icon: Icons.help_outline,
+            label: "Help & Support",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpCenterPage())),
+          ),
+          // Replaces the earlier "Login Information" tile - not in the
+          // real Figma header at all (confirmed against a fresh
+          // screenshot 2026-07-18), which shows "About the App" here
+          // instead.
+          (
+            icon: Icons.info_outline,
+            label: "About the App",
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutAppPage())),
+          ),
+          (icon: Icons.logout, label: "Log Out", onTap: _logout),
+        ],
+      ),
+    ];
   }
 
   Widget _sectionTitle(String title) {
@@ -82,24 +193,27 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _tileGroup(List<Widget> tiles) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.groupCardBackground,
+        // #FCF8ED - same systemic fix as K54SearchField/AI Assistant's
+        // search pill: this was still the stale tan/gold
+        // groupCardBackground.
+        color: const Color(0xFFFCF8ED),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(children: tiles),
     );
   }
 
-  Widget _tile({required IconData icon, required String title, required VoidCallback onTap}) {
+  Widget _tile(_SettingsTile tile) {
     return InkWell(
-      onTap: onTap,
+      onTap: tile.onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: AppColors.jetBlack),
+            Icon(tile.icon, size: 20, color: AppColors.jetBlack),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(title, style: GoogleFonts.lato(fontSize: 15, color: AppColors.jetBlack)),
+              child: Text(tile.label, style: GoogleFonts.lato(fontSize: 15, color: AppColors.jetBlack)),
             ),
             const Icon(Icons.chevron_right, size: 18, color: AppColors.jetBlack),
           ],
@@ -110,11 +224,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredSections = _sections()
+        .map((s) => (s.$1, s.$2.where((t) => t.label.toLowerCase().contains(_query)).toList()))
+        .where((s) => s.$2.isNotEmpty)
+        .toList();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: AppColors.green))
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Column(
@@ -131,89 +250,47 @@ class _SettingsPageState extends State<SettingsPage> {
                           "Account Settings",
                           style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.w700),
                         ),
+                        const Spacer(),
+                        TapScale(
+                          onTap: _openSearch,
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(Icons.search, size: 20, color: AppColors.jetBlack),
+                          ),
+                        ),
                       ],
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.topCenter,
+                      child: _searchExpanded
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: K54SearchField(
+                                controller: _searchController,
+                                focusNode: _searchFocusNode,
+                                hintText: "Search settings...",
+                              ),
+                            )
+                          : const SizedBox(width: double.infinity),
                     ),
                     const SizedBox(height: 12),
                     ProfileHeader(userName: userName, userTitle: userTitle, userImage: userImage),
                     const ProfileActions(isCurrentUser: true),
-                    _sectionTitle("Account Management / Settings"),
-                    _tileGroup([
-                      _tile(
-                        icon: Icons.email_outlined,
-                        title: "Change Email",
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ChangeEmailPage()),
+                    if (filteredSections.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: Text("No settings match \"${_searchController.text}\"", style: GoogleFonts.lato(color: Colors.grey.shade600)),
                         ),
-                      ),
-                      _tile(
-                        icon: Icons.vpn_key_outlined,
-                        title: "Change Password",
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ChangePasswordPage()),
-                        ),
-                      ),
-                      _tile(
-                        icon: Icons.person_off_outlined,
-                        title: "Deactivate Account",
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const DeactivateAccountPage()),
-                        ),
-                      ),
-                    ]),
-                    _sectionTitle("Security"),
-                    _tileGroup([
-                      _tile(
-                        icon: Icons.shield_outlined,
-                        title: "Two-Factor Authentication",
-                        onTap: () => _comingSoon("Two-factor authentication"),
-                      ),
-                      _tile(
-                        icon: Icons.history,
-                        title: "Login Activity",
-                        onTap: () => _comingSoon("Login activity"),
-                      ),
-                      _tile(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: "App Permissions",
-                        onTap: () => _comingSoon("App permissions"),
-                      ),
-                    ]),
-                    _sectionTitle("Settings"),
-                    _tileGroup([
-                      _tile(
-                        icon: Icons.person_outline,
-                        title: "Login Information",
-                        onTap: () => _comingSoon("Login information"),
-                      ),
-                      _tile(
-                        icon: Icons.notifications_none,
-                        title: "Notification Settings",
-                        onTap: () => _comingSoon("Notification settings"),
-                      ),
-                      _tile(
-                        icon: Icons.lock_outline,
-                        title: "Privacy Settings",
-                        onTap: () => _comingSoon("Privacy settings"),
-                      ),
-                      _tile(
-                        icon: Icons.public,
-                        title: "Language",
-                        onTap: () => _comingSoon("Language selection"),
-                      ),
-                      _tile(
-                        icon: Icons.help_outline,
-                        title: "Help & Support",
-                        onTap: () => _comingSoon("Help & support"),
-                      ),
-                      _tile(
-                        icon: Icons.logout,
-                        title: "Log Out",
-                        onTap: _logout,
-                      ),
-                    ]),
+                      )
+                    else
+                      for (final section in filteredSections) ...[
+                        _sectionTitle(section.$1),
+                        _tileGroup(section.$2.map(_tile).toList()),
+                      ],
                     const SizedBox(height: 20),
                   ],
                 ),

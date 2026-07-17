@@ -3,11 +3,12 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/core/widgets/pressable_pill.dart';
 import 'package:k54_mobile/features/ai/controllers/ai_chat_controller.dart';
 import 'package:k54_mobile/features/ai/models/ai_chat_message.dart';
+import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
 
 /// Matches the K54 Figma file's AI Assistant screen exactly (node
 /// 118:22, rendered 2026-07-08): header with search, a chat area, an
@@ -71,62 +72,13 @@ class _AiPageState extends State<AiPage> {
   }
 
   Future<void> _startGroupCreation(String defaultName) async {
-    final nameController = TextEditingController(text: defaultName);
-    final descController = TextEditingController();
-    String privacy = "public";
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text("Create Group"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: "Group Name"),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: "Description"),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: privacy,
-                decoration: const InputDecoration(labelText: "Privacy"),
-                items: const [
-                  DropdownMenuItem(value: "public", child: Text("Public")),
-                  DropdownMenuItem(value: "private", child: Text("Private")),
-                  DropdownMenuItem(value: "hidden", child: Text("Hidden")),
-                ],
-                onChanged: (value) => setDialogState(() => privacy = value ?? "public"),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text("Create"),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-    if (nameController.text.trim().isEmpty) return;
+    final details = await showCreateGroupDialog(context, initialName: defaultName);
+    if (details == null || !mounted) return;
 
     final result = await _controller.createGroup(
-      groupName: nameController.text.trim(),
-      description: descController.text.trim(),
-      privacy: privacy,
+      groupName: details.name,
+      description: details.description,
+      privacy: details.privacy,
     );
 
     if (!mounted) return;
@@ -158,10 +110,10 @@ class _AiPageState extends State<AiPage> {
             children: [
               Row(
                 children: [
-                  IconButton(
-                    onPressed: () => goHome(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
+                  // No back arrow - this is a main bottom-nav destination
+                  // (like Home/Members/Groups/Courses), not a pushed
+                  // screen, and the real header (confirmed against a
+                  // fresh screenshot 2026-07-18) doesn't show one.
                   Text(
                     "AI Assistant",
                     style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.w700),
@@ -171,8 +123,10 @@ class _AiPageState extends State<AiPage> {
                     width: 140,
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
+                    // #FCF8ED - same systemic fix as K54SearchField (was
+                    // the stale tan/gold groupCardBackground).
                     decoration: BoxDecoration(
-                      color: AppColors.groupCardBackground,
+                      color: const Color(0xFFFCF8ED),
                       borderRadius: BorderRadius.circular(9999),
                     ),
                     child: Row(
@@ -214,7 +168,7 @@ class _AiPageState extends State<AiPage> {
         border: Border.all(color: AppColors.groupCardAccent),
       ),
       child: _controller.loadingHistory
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.green))
           : _controller.messages.isEmpty
               ? const SizedBox.shrink()
               : ListView.builder(
@@ -225,7 +179,11 @@ class _AiPageState extends State<AiPage> {
                     if (index >= _controller.messages.length) {
                       return _buildThinkingBubble();
                     }
-                    return _buildBubble(_controller.messages[index]);
+                    final message = _controller.messages[index];
+                    return FadeSlideIn(
+                      key: ValueKey("${message.isUser}-${message.content.hashCode}-$index"),
+                      child: _buildBubble(message),
+                    );
                   },
                 ),
     );
@@ -312,9 +270,13 @@ class _AiPageState extends State<AiPage> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15),
+      // Exact colors from the AI ASSISTANT Figma frame (node 118:22,
+      // "Typing" input bar), pulled via the REST API 2026-07-16 - was a
+      // muted gray-green pair before this measurement existed.
       decoration: BoxDecoration(
-        color: const Color(0xFFF3EFD9),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFFB4D69E)),
       ),
       child: Row(
         children: [
@@ -339,41 +301,46 @@ class _AiPageState extends State<AiPage> {
             onPressed: _controller.sending ? null : () => _send(),
             icon: _controller.sending
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.send, color: AppColors.green),
+                : const Icon(Icons.send, color: AppColors.lightGreen),
           ),
         ],
       ),
     );
   }
 
-  Widget _pill(String label, VoidCallback onTap) {
+  Widget _pillPairRow(String leftLabel, VoidCallback onLeftTap, String rightLabel, VoidCallback onRightTap) {
+    // Explicit 2-column pairing (not a Wrap, which let pill widths and
+    // wrapping drift from row to row) - matches the Figma screenshot's
+    // clean, equal-width two-column grid exactly.
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10, right: 10),
-      child: PressablePill(label: label, onTap: onTap, height: 42),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(child: PressablePill(label: leftLabel, onTap: onLeftTap, height: 42)),
+          const SizedBox(width: 10),
+          Expanded(child: PressablePill(label: rightLabel, onTap: onRightTap, height: 42)),
+        ],
+      ),
     );
   }
 
   Widget _buildQuickActions() {
     return Column(
       children: [
-        Wrap(
-          alignment: WrapAlignment.center,
-          children: [
-            _pill("Create First Course", () => _send("Help me create my first course")),
-            _pill("Create NGO Community", () => _startGroupCreation("NGO Community")),
-            _pill("Create Church Group", () => _startGroupCreation("Church Group")),
-            _pill("Start Study Group", () => _startGroupCreation("Study Group")),
-          ],
+        _pillPairRow(
+          "Create First Course", () => _send("Help me create my first course"),
+          "Create NGO Community", () => _startGroupCreation("NGO Community"),
+        ),
+        _pillPairRow(
+          "Create Church Group", () => _startGroupCreation("Church Group"),
+          "Start Study Group", () => _startGroupCreation("Study Group"),
         ),
         const SizedBox(height: 6),
         Text("Quick Searches", style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade700)),
         const SizedBox(height: 10),
-        Wrap(
-          alignment: WrapAlignment.center,
-          children: [
-            _pill("Grow My Business", () => _send("Help me grow my business")),
-            _pill("Scale My Result", () => _send("Help me scale my results")),
-          ],
+        _pillPairRow(
+          "Grow My Business", () => _send("Help me grow my business"),
+          "Scale My Result", () => _send("Help me scale my results"),
         ),
       ],
     );

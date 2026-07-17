@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/utils/k54_route.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
 
@@ -78,7 +82,7 @@ class _NewConversationPageState extends State<NewConversationPage> {
       // itself would resolve).
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => ChatPage(threadId: thread.id, thread: thread)),
+        k54Route(ChatPage(threadId: thread.id, thread: thread)),
         result: true,
       );
     } catch (e) {
@@ -110,35 +114,11 @@ class _NewConversationPageState extends State<NewConversationPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3EFD9),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  "You can reopen an existing conversation with a friend "
-                  "here. Starting a brand-new conversation isn't available "
-                  "yet - it's coming in a future update.",
-                  style: TextStyle(fontSize: 12.5, height: 1.3),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
+              K54SearchField(
                 controller: _searchController,
                 autofocus: true,
                 onChanged: _onQueryChanged,
-                decoration: InputDecoration(
-                  hintText: "Search your friends...",
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: const Color(0xFFF7F7F7),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
+                hintText: "Search your friends...",
               ),
               const SizedBox(height: 12),
               Expanded(child: _buildResults()),
@@ -151,7 +131,7 @@ class _NewConversationPageState extends State<NewConversationPage> {
 
   Widget _buildResults() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.green));
     }
     if (_error != null) {
       return Center(child: Text("Search failed: $_error"));
@@ -174,13 +154,7 @@ class _NewConversationPageState extends State<NewConversationPage> {
         final isStarting = _startingMemberId == id;
 
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-            child: avatar == null
-                ? Text(name.isNotEmpty ? name[0].toUpperCase() : "?")
-                : null,
-          ),
+          leading: UserAvatar(imageUrl: avatar, name: name),
           title: Text(name),
           trailing: isStarting
               ? const SizedBox(

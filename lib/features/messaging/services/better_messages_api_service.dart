@@ -10,11 +10,19 @@ import 'package:k54_mobile/core/services/api_service.dart';
 /// same ApiService/Dio instance as every other service in the app.
 ///
 /// Only endpoints with a captured, confirmed request/response shape are
-/// implemented here. `getUniqueConversation` (start a brand-new
-/// conversation) and a single-thread mark-read call have NO confirmed
+/// implemented here. A single-thread mark-read call has NO confirmed
 /// shape - the website only demonstrated read-marking over its WebSocket
-/// (`threadOpen` event, out of scope until Stage C) - so neither is
-/// implemented here; callers must not invent a payload for them.
+/// (`threadOpen` event, out of scope until Stage C) - so it's not
+/// implemented here; callers must not invent a payload for it.
+///
+/// `startNewConversation` (thread/new), `reactToMessage`
+/// (reactions/save), `blockUser`/`unblockUser` were captured live
+/// 2026-07-14 (HAR, real browser session) - same `/better-messages/v1/`
+/// namespace and JWT auth as everything else here, so they carry the
+/// same confidence level. Their response bodies were empty in the
+/// capture (fire-and-forget from the site's own UI), so callers should
+/// re-fetch (threads/thread) afterward rather than trust anything back,
+/// same discipline as sendMessage below.
 class BetterMessagesApiService {
   final ApiService _api = ApiService.instance;
 
@@ -84,5 +92,46 @@ class BetterMessagesApiService {
 
   Future<Response> getGroups() {
     return _api.get("/better-messages/v1/getGroups");
+  }
+
+  /// Search/list users to start a new conversation with. No query
+  /// parameter was present in the captured call (the site's UI showed
+  /// default suggestions without a typed search yet) - if server-side
+  /// text search turns out to be needed, that's a separate capture.
+  Future<Response> userSuggestions() {
+    return _api.get("/better-messages/v1/userSuggestions");
+  }
+
+  /// Creates a brand-new thread (or the site's own real behavior when no
+  /// thread with these recipients exists yet - `thread/suggest`, which
+  /// would dedup server-side, was captured too but its response shape
+  /// wasn't, so this always goes straight to thread/new; local-cache
+  /// dedup already happens one level up in MessagingRepository).
+  Future<Response> startNewConversation({
+    required List<String> recipients,
+    required String message,
+    String subject = "",
+  }) {
+    return _api.post("/better-messages/v1/thread/new", {
+      "recipients": recipients,
+      "message": message,
+      "subject": subject,
+      "meta": {},
+    });
+  }
+
+  Future<Response> reactToMessage({required String messageId, required String emoji}) {
+    return _api.post("/better-messages/v1/reactions/save", {
+      "message_id": messageId,
+      "emoji": emoji,
+    });
+  }
+
+  Future<Response> blockUser(String userId) {
+    return _api.post("/better-messages/v1/blockUser", {"user_id": userId});
+  }
+
+  Future<Response> unblockUser(String userId) {
+    return _api.post("/better-messages/v1/unblockUser", {"user_id": userId});
   }
 }

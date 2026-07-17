@@ -4,6 +4,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:k54_mobile/features/activity/models/comment_model.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/utils/open_profile.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 
 /// Facebook-pattern comment sheet (list + fixed composer + inline replies),
 /// restyled with K54's own colors/typography/radii so it reads as part of
@@ -17,13 +21,9 @@ class CommentsSheet extends StatefulWidget {
   const CommentsSheet({super.key, required this.post, this.onPostChanged});
 
   static Future<void> show(BuildContext context, Post post, {VoidCallback? onPostChanged}) {
-    return showModalBottomSheet(
+    return showK54BottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (_) => CommentsSheet(post: post, onPostChanged: onPostChanged),
     );
   }
@@ -180,6 +180,11 @@ class _CommentsSheetState extends State<CommentsSheet> {
     }
   }
 
+  void _openCommentAuthor(Comment comment) {
+    if (comment.userId.isEmpty) return;
+    openProfile(context, comment.userId);
+  }
+
   void _startReply(Comment comment) {
     if (widget.post.commentsClosed) return;
     setState(() => _replyingTo = comment);
@@ -318,15 +323,16 @@ class _CommentsSheetState extends State<CommentsSheet> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: isReply ? 14 : 18,
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: comment.userAvatar.isNotEmpty
-                ? CachedNetworkImageProvider(comment.userAvatar)
-                : null,
-            child: comment.userAvatar.isEmpty
-                ? const Icon(Icons.person, size: 16)
-                : null,
+          TapScale(
+            onTap: () => _openCommentAuthor(comment),
+            borderRadius: BorderRadius.circular(isReply ? 14 : 18),
+            child: UserAvatar(
+              imageUrl: null,
+              imageProvider:
+                  comment.userAvatar.isNotEmpty ? CachedNetworkImageProvider(comment.userAvatar) : null,
+              name: comment.userName,
+              radius: isReply ? 14 : 18,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -343,9 +349,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        comment.userName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      GestureDetector(
+                        onTap: () => _openCommentAuthor(comment),
+                        child: Text(
+                          comment.userName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text(comment.content, style: const TextStyle(fontSize: 14, height: 1.35)),

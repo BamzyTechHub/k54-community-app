@@ -14,6 +14,12 @@ class PrimaryButton extends StatefulWidget {
   final bool loading;
   final double height;
   final IconData? icon;
+  // Secondary/outline treatment (transparent bg, border+text in
+  // [outlineColor]) - replaces what used to be 4 separately hand-written
+  // "Cancel"/"Save Draft"/"Go Back" buttons, each with a slightly
+  // different border color/width.
+  final bool outline;
+  final Color outlineColor;
 
   const PrimaryButton({
     super.key,
@@ -22,6 +28,8 @@ class PrimaryButton extends StatefulWidget {
     this.loading = false,
     this.height = 55,
     this.icon,
+    this.outline = false,
+    this.outlineColor = AppColors.green,
   });
 
   @override
@@ -39,10 +47,18 @@ class _PrimaryButtonState extends State<PrimaryButton> {
   @override
   Widget build(BuildContext context) {
     final disabled = widget.onPressed == null || widget.loading;
-    final bg = disabled
-        ? AppColors.buttonRegularBg.withValues(alpha: 0.5)
-        : (_pressed ? AppColors.buttonPressedBg : AppColors.buttonRegularBg);
-    final fg = _pressed ? AppColors.buttonPressedText : AppColors.buttonRegularText;
+
+    Color bg;
+    Color fg;
+    if (widget.outline) {
+      bg = _pressed ? widget.outlineColor.withValues(alpha: 0.08) : Colors.transparent;
+      fg = widget.outlineColor;
+    } else {
+      bg = disabled
+          ? AppColors.buttonRegularBg.withValues(alpha: 0.5)
+          : (_pressed ? AppColors.buttonPressedBg : AppColors.buttonRegularBg);
+      fg = _pressed ? AppColors.buttonPressedText : AppColors.buttonRegularText;
+    }
 
     return GestureDetector(
       onTapDown: (_) => _setPressed(true),
@@ -56,13 +72,14 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(widget.height / 2),
+          border: widget.outline ? Border.all(color: widget.outlineColor, width: 1.5) : null,
         ),
         child: Center(
           child: widget.loading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 22,
                   width: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: widget.outline ? widget.outlineColor : Colors.black54),
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,

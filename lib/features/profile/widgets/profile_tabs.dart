@@ -1,77 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/underline_tab_row.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_menu.dart';
 
-/// The first 4 tabs (Timeline/My Connections/live Video/Groups) are
-/// confirmed directly from Figma's tab-bar component (node 313:3032,
-/// "Frame 2147228207"). The Figma file's per-frame copies of this
-/// component drift (the file is a work-in-progress), and the live tab
-/// row is meant to be a fuller, scrollable set - so the remaining tabs
-/// (Courses/Documents/Quizzes/Orders) are taken from the live site's own
-/// confirmed profile nav (k54global.com/members/{user}/), which exposes
-/// exactly these sections beyond Groups. The "..." icon stays a separate,
-/// fixed account-actions menu (Edit/Email/Password/Settings/Logout), not
-/// a tab, and does not scroll with the tab row.
+/// Corrected 2026-07-18 (second pass) against a fuller set of Figma
+/// screenshots: this isn't a static 3-tab row with a separate action
+/// menu - it's a single sliding carousel of 9 destinations (Timeline/My
+/// Connections/live Video, then Groups/Messages/Courses/Documents/Email
+/// Invites/Account Settings from the "..." menu). Only 3 show at once;
+/// picking a hidden one from "..." slides it into view (dropping the
+/// oldest of the current 3) and its content renders inline in the same
+/// scrolling profile page - confirmed by the screenshots showing the
+/// visible 3-tab window itself change (e.g. "My Connections | live Video
+/// | Groups" becomes "live Video | Groups | Messages" after picking
+/// Messages). Account Settings is the one exception - it pushes the real
+/// SettingsPage instead of becoming an inline tab, since cramming full
+/// account management inline under a scrolling feed isn't reasonable UX
+/// and no screenshot shows it any other way. All of that sliding-window
+/// state lives in ProfilePage; this widget just renders whatever 3 tabs
+/// and active tab it's given.
 class ProfileTabs extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onTabChanged;
+  final List<String> visibleTabs;
+  final String activeTab;
+  final ValueChanged<String> onTabChanged;
   final ValueChanged<String> onMenuPressed;
 
   const ProfileTabs({
     super.key,
-    required this.selectedIndex,
+    required this.visibleTabs,
+    required this.activeTab,
     required this.onTabChanged,
     required this.onMenuPressed,
   });
 
-  static const tabs = [
-    "Timeline",
-    "My Connections",
-    "live Video",
-    "Groups",
-    "Courses",
-    "Documents",
-    "Quizzes",
-    "Orders",
-  ];
+  static const baseTabs = ["Timeline", "My Connections", "live Video"];
+  static const menuTabs = ["Groups", "Messages", "Courses", "Documents", "Email Invites", "Account Settings"];
 
   @override
   Widget build(BuildContext context) {
+    final selectedIndex = visibleTabs.indexOf(activeTab);
     return Row(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(tabs.length, (index) {
-                final isSelected = selectedIndex == index;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: GestureDetector(
-                    onTap: () => onTabChanged(index),
-                    child: Container(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: isSelected ? AppColors.green : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        tabs[index],
-                        style: GoogleFonts.poppins(fontSize: 13, color: AppColors.jetBlack),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
+          child: UnderlineTabRow(
+            tabs: visibleTabs,
+            selectedIndex: selectedIndex,
+            onChanged: (index) => onTabChanged(visibleTabs[index]),
           ),
         ),
-        ProfileMenu(onSelected: onMenuPressed),
+        ProfileMenu(selectedLabel: activeTab, onSelected: onMenuPressed),
       ],
     );
   }

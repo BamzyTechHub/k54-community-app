@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
 import 'package:k54_mobile/features/search/models/search_result_model.dart';
 import 'package:k54_mobile/features/search/repositories/search_repository.dart';
 
@@ -91,33 +92,11 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.groupCardBackground,
-                        borderRadius: BorderRadius.circular(9999),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search, size: 16, color: AppColors.gold),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              autofocus: widget.initialQuery.isEmpty,
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: _search,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                border: InputBorder.none,
-                                hintText: "Search K54 Global",
-                                hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.gold),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: K54SearchField(
+                      controller: _controller,
+                      autofocus: widget.initialQuery.isEmpty,
+                      onSubmitted: _search,
+                      hintText: "Search K54 Global",
                     ),
                   ),
                 ],

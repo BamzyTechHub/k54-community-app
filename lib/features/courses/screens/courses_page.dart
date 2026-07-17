@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/utils/nav.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/filter_popover.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
 
@@ -28,20 +28,56 @@ class _CoursesPageState extends State<CoursesPage> {
 
   // Filter Option
   String selectedFilter = "Release Date (newest first)";
+  final LayerLink _filterLayerLink = LayerLink();
 
+  // Real client-side sort of the course list below - previously the
+  // dropdown updated `selectedFilter` but never actually reordered
+  // `courses`, so picking any option looked like it did nothing. This
+  // whole screen is still dummy/placeholder data (Tutor LMS's real course
+  // endpoint exists but isn't wired yet - flagged separately, not part of
+  // this fix), so "release date" has no real date field to sort by; newest/
+  // oldest instead uses the authored order and its reverse, which is an
+  // honest stand-in rather than inventing a fake date field.
+  List<Map<String, String>> get _sortedCourses {
+    final sorted = [...courses];
+    switch (selectedFilter) {
+      case "Release Date (oldest first)":
+        return sorted.reversed.toList();
+      case "Course Title (A-Z)":
+        sorted.sort((a, b) => (a["title"] ?? "").compareTo(b["title"] ?? ""));
+        return sorted;
+      case "Course Title (Z-A)":
+        sorted.sort((a, b) => (b["title"] ?? "").compareTo(a["title"] ?? ""));
+        return sorted;
+      default: // "Release Date (newest first)"
+        return sorted;
+    }
+  }
 
-  // Filter List
-  final List<String> filters = [
-
-    "Release Date (newest first)",
-
-    "Release Date (oldest first)",
-
-    "Course Title (A-Z)",
-
-    "Course Title (Z-A)",
-
-  ];
+  void _openFilterPopover() {
+    const filters = [
+      "Release Date (newest first)",
+      "Release Date (oldest first)",
+      "Course Title (A-Z)",
+      "Course Title (Z-A)",
+    ];
+    showFilterPopover(
+      context: context,
+      layerLink: _filterLayerLink,
+      sections: [
+        FilterSection(
+          label: "Course Filter",
+          options: filters
+              .map((label) => FilterOption(
+                    label: label,
+                    selected: selectedFilter == label,
+                    onTap: () => setState(() => selectedFilter = label),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
+  }
 
 
   // Dummy Course Data
@@ -122,16 +158,9 @@ Row(
 
   children: [
 
-    IconButton(
-      onPressed: () => goHome(context),
-      icon: const Icon(
-        Icons.arrow_back,
-        size: 28,
-      ),
-    ),
-
-    const SizedBox(width: 12),
-
+    // No back arrow - Courses is a main bottom-nav destination (reached
+    // via pushReplacement, same as AI Assistant/Members/Groups/Home),
+    // not a pushed screen.
     const Text(
 
       "Courses",
@@ -146,68 +175,46 @@ Row(
     const Spacer(),
 
 
-    // Filter Dropdown
-    Container(
-
-      height: 28,
-
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-      ),
-
-      decoration: BoxDecoration(
-
-        border: Border.all(
-          color: AppColors.groupCardAccent,
-        ),
-
+    // Filter trigger - opens the real floating "Course Filter" popover
+    // (matches the Figma screenshot's custom card) instead of Flutter's
+    // own default DropdownButton menu styling.
+    CompositedTransformTarget(
+      link: _filterLayerLink,
+      child: TapScale(
+        onTap: _openFilterPopover,
         borderRadius: BorderRadius.circular(7),
+        child: Container(
 
-      ),
+          height: 28,
 
-      child: DropdownButton<String>(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+          ),
 
-        value: selectedFilter,
+          decoration: BoxDecoration(
 
-        underline: const SizedBox(),
-
-        isDense: true,
-
-        icon: const Icon(
-          Icons.keyboard_arrow_down,
-          size: 15,
-        ),
-
-        items: filters.map((item) {
-
-          return DropdownMenuItem(
-
-            value: item,
-
-            child: Text(
-              item,
-              style: const TextStyle(
-                fontSize: 11,
-              ),
+            border: Border.all(
+              color: AppColors.groupCardAccent,
             ),
 
-          );
+            borderRadius: BorderRadius.circular(7),
 
-        }).toList(),
+          ),
 
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                selectedFilter,
+                style: const TextStyle(fontSize: 11),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.keyboard_arrow_down, size: 15),
+            ],
+          ),
 
-        onChanged: (value) {
-
-          setState(() {
-
-            selectedFilter = value!;
-
-          });
-
-        },
-
+        ),
       ),
-
     ),
 
   ],
@@ -224,7 +231,7 @@ Expanded(
 
   child: GridView.builder(
 
-    itemCount: courses.length,
+    itemCount: _sortedCourses.length,
 
     gridDelegate:
         SliverGridDelegateWithFixedCrossAxisCount(
@@ -243,7 +250,7 @@ Expanded(
     itemBuilder: (context, index) {
 
 
-      final course = courses[index];
+      final course = _sortedCourses[index];
 
 
       return FadeSlideIn(
@@ -256,9 +263,13 @@ Expanded(
 
         decoration: BoxDecoration(
 
-          color: const Color(0xFFF6F8F4),
+          color: const Color(0xFFE8EFE8),
 
-          borderRadius: BorderRadius.circular(20),
+          // Radius 24 and image height 65 - exact match from node
+          // 157:25's course card ("Frame 2147228245"), pulled via the
+          // REST API 2026-07-16, was 20/90 before this measurement
+          // existed.
+          borderRadius: BorderRadius.circular(24),
 
         ),
 
@@ -272,22 +283,22 @@ Expanded(
 ClipRRect(
 
   borderRadius: const BorderRadius.only(
-    topLeft: Radius.circular(20),
-    topRight: Radius.circular(20),
+    topLeft: Radius.circular(24),
+    topRight: Radius.circular(24),
   ),
 
   child: Image.asset(
 
     course["image"]!,
 
-    height: 90,
+    height: 65,
 
     width: double.infinity,
 
     fit: BoxFit.cover,
 
     errorBuilder: (_, _, _) => Container(
-      height: 90,
+      height: 65,
       color: Colors.grey.shade300,
       child: const Icon(Icons.school_outlined, color: Colors.grey),
     ),
@@ -466,7 +477,10 @@ Padding(
 
   padding: const EdgeInsets.all(10),
 
-  child: Container(
+  child: TapScale(
+    onTap: () => _comingSoon(course["title"] ?? "This course"),
+    borderRadius: BorderRadius.circular(20),
+    child: Container(
 
     height: 35,
 
@@ -499,6 +513,7 @@ Padding(
 
     ),
 
+  ),
   ),
 
 ),

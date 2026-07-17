@@ -92,7 +92,7 @@ class MessagingRepository {
     final response = await _api.getThreads();
     final envelope = response.data as Map<String, dynamic>;
 
-    _threadsCache = _hydrate(envelope, userId)
+    _threadsCache = _dedupeByContact(_hydrate(envelope, userId))
       ..sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
         return b.lastMessageDate.compareTo(a.lastMessageDate);
@@ -100,6 +100,36 @@ class MessagingRepository {
 
     _recalculateUnread();
     return _threadsCache;
+  }
+
+  /// Better Messages can genuinely have more than one thread with the same
+  /// person (e.g. one started from the site's own UI, another from this
+  /// app's "Message" button before this dedup existed) - real server data,
+  /// not a parsing bug. Showing every one of them as a separate inbox row
+  /// is confusing (the same contact appearing 2-3 times, most with no
+  /// messages at all), so this keeps exactly one row per other-user:
+  /// whichever thread actually has messages, tie-broken by the most
+  /// recently active one. Threads with a different `otherUserId` (or
+  /// group threads, where multiple participants exist) are left alone.
+  List<MessageThread> _dedupeByContact(List<MessageThread> threads) {
+    final byContact = <String, MessageThread>{};
+    for (final thread in threads) {
+      final key = thread.otherUserId;
+      final existing = byContact[key];
+      if (existing == null) {
+        byContact[key] = thread;
+        continue;
+      }
+      final existingHasMessages = existing.messages.isNotEmpty || existing.lastMessagePreview.isNotEmpty;
+      final thisHasMessages = thread.messages.isNotEmpty || thread.lastMessagePreview.isNotEmpty;
+      if (thisHasMessages && !existingHasMessages) {
+        byContact[key] = thread;
+      } else if (thisHasMessages == existingHasMessages &&
+          thread.lastMessageDate.isAfter(existing.lastMessageDate)) {
+        byContact[key] = thread;
+      }
+    }
+    return byContact.values.toList();
   }
 
   /// Fetches a single thread with full message history. Also patches the
@@ -168,11 +198,9 @@ class MessagingRepository {
   }
 
   /// Finds an existing 1:1 thread with [otherUserId] in the cache and
-  /// opens it. Starting a genuinely NEW conversation (no existing thread)
-  /// requires `getUniqueConversation`, which has no confirmed request
-  /// shape yet (see BetterMessagesApiService's doc comment) - callers must
-  /// handle the thrown [StateError] rather than this silently guessing a
-  /// payload that could create a malformed or invisible thread.
+  /// opens it, or creates a brand-new one via `thread/new` (confirmed
+  /// live 2026-07-14, HAR capture - see BetterMessagesApiService's doc
+  /// comment) when none exists yet.
   Future<MessageThread> findOrCreateThreadWith({
     required String otherUserId,
     String openingMessage = "Hi!",
@@ -187,12 +215,18 @@ class MessagingRepository {
       }
     }
 
-    throw StateError(
-      "Starting a new conversation isn't available yet - the real "
-      "request shape for Better Messages' getUniqueConversation endpoint "
-      "hasn't been confirmed. You can only open existing conversations "
-      "right now.",
-    );
+    await _api.startNewConversation(recipients: [otherUserId], message: openingMessage);
+    // The create response body isn't trustworthy (empty in the capture) -
+    // re-fetch the inbox so the new thread comes back through the same
+    // parsing path as everything else, then locate it by recipient.
+    await refreshThreads();
+    for (final thread in _threadsCache) {
+      if (thread.otherUserId == otherUserId) {
+        return getThread(thread.id);
+      }
+    }
+
+    throw StateError("Couldn't start the conversation - it didn't appear in the inbox after creating it.");
   }
 
   /// No confirmed REST endpoint marks a single thread read (the website
@@ -230,6 +264,10 @@ class MessagingRepository {
     _threadsCache.removeWhere((t) => t.id == threadId);
     _recalculateUnread();
   }
+
+  Future<void> blockUser(String userId) => _api.blockUser(userId);
+
+  Future<void> unblockUser(String userId) => _api.unblockUser(userId);
 
   Future<List<dynamic>> searchMembers(String query) async {
     final response = await _api.getFriends();

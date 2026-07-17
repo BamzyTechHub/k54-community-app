@@ -50,6 +50,30 @@ class ChatController extends ChangeNotifier {
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
   }
 
+  /// Appends only messages whose id isn't already present. The poll timer
+  /// (every 4s) and a completing send() both mutate `thread.messages`
+  /// independently - if a poll tick lands while a send is still
+  /// in-flight (easy on a slow connection, since sendReply does a POST
+  /// and a follow-up GET), the same message could get appended twice
+  /// with no de-dup. This is what caused messages to visibly appear
+  /// twice - fixed here rather than in each call site.
+  void _appendMessages(List<ChatMessage> incoming) {
+    if (thread == null || incoming.isEmpty) return;
+    final existingIds = thread!.messages.map((m) => m.id).toSet();
+    final deduped = incoming.where((m) => !existingIds.contains(m.id)).toList();
+    if (deduped.isEmpty) return;
+
+    // copyWith (not a manual reconstruction) so fields it doesn't touch -
+    // isPinned/isMuted/otherUserOnline - survive a poll tick instead of
+    // silently resetting to their defaults.
+    thread = thread!.copyWith(
+      lastMessagePreview: deduped.last.message,
+      lastMessageDate: deduped.last.date,
+      unreadCount: 0,
+      messages: [...thread!.messages, ...deduped],
+    );
+  }
+
   Future<void> _pollOnce() async {
     if (_disposed || thread == null) return;
     final lastId = thread!.messages.isNotEmpty ? thread!.messages.last.id : null;
@@ -58,16 +82,7 @@ class ChatController extends ChangeNotifier {
           await _repo.pollNewMessages(threadId: threadId, lastKnownMessageId: lastId);
       if (newOnes.isEmpty) return;
 
-      thread = MessageThread(
-        id: thread!.id,
-        otherUserId: thread!.otherUserId,
-        otherUserName: thread!.otherUserName,
-        otherUserAvatar: thread!.otherUserAvatar,
-        lastMessagePreview: newOnes.last.message,
-        lastMessageDate: newOnes.last.date,
-        unreadCount: 0,
-        messages: [...thread!.messages, ...newOnes],
-      );
+      _appendMessages(newOnes);
       if (!_disposed) {
         notifyListeners();
       }
@@ -83,16 +98,7 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
     try {
       final sent = await _repo.sendReply(threadId: threadId, message: text.trim());
-      thread = MessageThread(
-        id: thread!.id,
-        otherUserId: thread!.otherUserId,
-        otherUserName: thread!.otherUserName,
-        otherUserAvatar: thread!.otherUserAvatar,
-        lastMessagePreview: sent.message,
-        lastMessageDate: sent.date,
-        unreadCount: 0,
-        messages: [...thread!.messages, sent],
-      );
+      _appendMessages([sent]);
       return true;
     } catch (e) {
       error = e.toString();

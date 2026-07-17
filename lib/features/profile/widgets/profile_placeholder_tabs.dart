@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 
 /// Empty states below match the live site's own profile tabs exactly
 /// (fetched directly from k54global.com/members/{user}/documents|quizzes|
@@ -43,42 +46,143 @@ class ProfileEmptyTab extends StatelessWidget {
   }
 }
 
-/// Documents tab: search bar (non-functional - no confirmed document
-/// endpoint) + the live site's own "Sorry, no documents were found."
-class ProfileDocumentsTab extends StatelessWidget {
+/// Documents tab, matching the Figma "Upload Document" / "Create Folder"
+/// design: Create Folder is real, wired to the confirmed live
+/// `POST /buddyboss/v1/document/folder`. Upload Document stays an honest
+/// "not available yet" tap - `/buddyboss/v1/document/upload` exists but
+/// its OPTIONS schema declares no args (reads $_FILES directly), so the
+/// multipart field name isn't discoverable from the API and isn't
+/// guessed at. The list below is real (GET /buddyboss/v1/document).
+class ProfileDocumentsTab extends StatefulWidget {
   const ProfileDocumentsTab({super.key});
 
   @override
+  State<ProfileDocumentsTab> createState() => _ProfileDocumentsTabState();
+}
+
+class _ProfileDocumentsTabState extends State<ProfileDocumentsTab> {
+  final BuddyBossService _service = BuddyBossService();
+  List<Map<String, dynamic>>? _documents;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      _documents = await _service.getDocuments();
+    } catch (_) {
+      _documents = [];
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$feature isn't available yet")));
+  }
+
+  Future<void> _createFolder() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: K54Dialog.shape,
+        title: const Text("Create Folder"),
+        content: TextField(controller: controller, decoration: const InputDecoration(hintText: "Folder name")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text("Create"),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+
+    try {
+      await _service.createDocumentFolder(title: name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Folder "$name" created')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't create folder: $e")));
+    }
+  }
+
+  Widget _actionRow({required IconData icon, required String label, required VoidCallback onTap}) {
+    return TapScale(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFCF8ED),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.green.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: AppColors.green),
+            const SizedBox(width: 12),
+            Text(label, style: GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.jetBlack)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final documents = _documents ?? [];
     return Column(
       children: [
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: AppColors.groupCardBackground,
-            borderRadius: BorderRadius.circular(9999),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.search, size: 16, color: AppColors.gold),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  enabled: false,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: "Search Documents…",
-                    hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.gold),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        _actionRow(
+          icon: Icons.upload_file_outlined,
+          label: "Upload Document",
+          onTap: () => _comingSoon("Uploading documents"),
         ),
-        const SizedBox(height: 16),
-        const ProfileEmptyTab(icon: Icons.description_outlined, message: "Sorry, no documents were found."),
+        _actionRow(icon: Icons.create_new_folder_outlined, label: "Create Folder", onTap: _createFolder),
+        const SizedBox(height: 6),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: CircularProgressIndicator(color: AppColors.green),
+          )
+        else if (documents.isEmpty)
+          const ProfileEmptyTab(icon: Icons.description_outlined, message: "Sorry, no documents were found.")
+        else
+          ...documents.map((doc) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5EFD9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      doc["type"] == "folder" ? Icons.folder_outlined : Icons.description_outlined,
+                      color: AppColors.groupMutedText,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        (doc["title"] ?? doc["name"] ?? "Untitled").toString(),
+                        style: GoogleFonts.lato(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
       ],
     );
   }

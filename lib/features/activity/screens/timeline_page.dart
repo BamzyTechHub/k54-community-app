@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
+import 'package:k54_mobile/core/widgets/state_views.dart';
 import 'package:k54_mobile/features/activity/widgets/post_card.dart';
 
 class TimelinePage extends StatefulWidget {
@@ -108,8 +112,10 @@ class TimelinePageState extends State<TimelinePage> {
       future: _timelineFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
+          return ListView.builder(
+            padding: const EdgeInsets.all(15),
+            itemCount: 3,
+            itemBuilder: (_, _) => const SkeletonPost(),
           );
         }
 
@@ -124,13 +130,8 @@ class TimelinePageState extends State<TimelinePage> {
             onRefresh: _refresh,
             child: ListView(
               children: const [
-                SizedBox(height: 250),
-                Center(
-                  child: Text(
-                    "No posts available",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+                SizedBox(height: 100),
+                K54EmptyState(icon: Icons.dynamic_feed_outlined, message: "No posts yet"),
               ],
             ),
           );
@@ -140,12 +141,24 @@ class TimelinePageState extends State<TimelinePage> {
 
         return RefreshIndicator(
           onRefresh: _refresh,
-          child: ListView.separated(
+          child: Center(
+            child: ConstrainedBox(
+              // Caps the feed at a readable width on tablets instead of
+              // stretching single-column cards edge-to-edge - same pattern
+              // already used by Friends/Groups/Members.
+              constraints: BoxConstraints(maxWidth: Responsive.isTablet(context) ? 640 : double.infinity),
+              child: ListView.builder(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 20),
+            // No separatorBuilder gap here - PostCard already carries its
+            // own 10px top+bottom margin, which alone produces the exact
+            // 20px gap the Figma feed specifies (autolayout gap=20) between
+            // adjacent cards. Stacking a separator on top of that margin
+            // was doubling the gap to ~28px, which is likely what read as
+            // the feed looking like disconnected, floating cards instead
+            // of a cohesive scroll.
             itemCount: posts.length + (_loadingMore ? 1 : 0),
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               if (index >= posts.length) {
                 return const Padding(
@@ -154,7 +167,7 @@ class TimelinePageState extends State<TimelinePage> {
                     child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
                     ),
                   ),
                 );
@@ -193,6 +206,8 @@ class TimelinePageState extends State<TimelinePage> {
                 ),
               );
             },
+              ),
+            ),
           ),
         );
       },

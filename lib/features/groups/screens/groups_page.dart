@@ -2,12 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/utils/nav.dart';
+import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
+import 'package:k54_mobile/core/widgets/contact_row.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/filter_popover.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
+import 'package:k54_mobile/core/widgets/pressable_pill.dart';
+import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
+import 'package:k54_mobile/core/widgets/state_views.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/widgets/underline_tab_row.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 import 'package:k54_mobile/features/groups/controllers/groups_controller.dart';
 import 'package:k54_mobile/features/groups/models/group_model.dart';
 import 'package:k54_mobile/features/groups/repositories/groups_repository.dart';
+import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
 
 /// Single source of truth for the Groups screen, reused from three places
 /// it's reachable in the app: the main bottom nav (as its own pushed
@@ -36,10 +46,21 @@ class _GroupsPageState extends State<GroupsPage> {
   int selectedTab = 0;
   final tabs = const ["All Groups", "My Groups", "Create a Group"];
 
+  // BP-REST's confirmed `orderby` values for this endpoint - shared by
+  // the toolbar's inline dropdown and the header filter icon's popover,
+  // both of which drive the same real _allGroupsController.sortBy().
+  static const _sortOptions = {
+    "last_activity": "Recently Active",
+    "date_created": "Newest",
+    "name": "Alphabetical",
+    "total_member_count": "Most Members",
+  };
+
   final GroupsController _allGroupsController = GroupsController();
   final MyGroupsController _myGroupsController = MyGroupsController();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final LayerLink _filterLayerLink = LayerLink();
 
   Set<String> _myGroupIds = {};
 
@@ -82,6 +103,25 @@ class _GroupsPageState extends State<GroupsPage> {
     );
   }
 
+  void _openFilterPopover() {
+    showFilterPopover(
+      context: context,
+      layerLink: _filterLayerLink,
+      sections: [
+        FilterSection(
+          label: "Groups view filter",
+          options: _sortOptions.entries
+              .map((e) => FilterOption(
+                    label: e.value,
+                    selected: _allGroupsController.orderby == e.key,
+                    onTap: () => _allGroupsController.sortBy(e.key),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
   Future<void> _toggleMembership(Group group) async {
     final isMember = _myGroupIds.contains(group.id);
     // Optimistic - flips the button instantly instead of waiting on the
@@ -116,53 +156,14 @@ class _GroupsPageState extends State<GroupsPage> {
   }
 
   Future<void> _createGroup() async {
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    String status = "public";
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text("Create a Group"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: "Group Name")),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: "Description"),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: status,
-                decoration: const InputDecoration(labelText: "Privacy"),
-                items: const [
-                  DropdownMenuItem(value: "public", child: Text("Public")),
-                  DropdownMenuItem(value: "private", child: Text("Private")),
-                  DropdownMenuItem(value: "hidden", child: Text("Hidden")),
-                ],
-                onChanged: (value) => setDialogState(() => status = value ?? "public"),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
-            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Create")),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed != true || nameController.text.trim().isEmpty || !mounted) return;
+    final details = await showCreateGroupDialog(context);
+    if (details == null || !mounted) return;
 
     try {
       await GroupsRepository.instance.createGroup(
-        name: nameController.text.trim(),
-        description: descController.text.trim(),
-        status: status,
+        name: details.name,
+        description: details.description,
+        status: details.privacy,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Group created")));
@@ -175,17 +176,15 @@ class _GroupsPageState extends State<GroupsPage> {
     }
   }
 
-  Widget _iconChip({required IconData icon, required VoidCallback onTap, double size = 16}) {
-    return GestureDetector(
+  // Both Groups frames in Figma (50:1523 embedded, 87:76 full directory)
+  // show plain icons with no circular chip background - unlike Messages'
+  // header, which does use one.
+  Widget _plainIcon({required IconData icon, required VoidCallback onTap, double size = 22}) {
+    return TapScale(
       onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppColors.iconButtonBackground,
-          shape: BoxShape.circle,
-        ),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
         child: Icon(icon, size: size, color: AppColors.jetBlack),
       ),
     );
@@ -207,8 +206,19 @@ class _GroupsPageState extends State<GroupsPage> {
     );
   }
 
-  /// Compact list matching Figma node 50:1523 - reached from the
+  /// Compact list for Figma node 50:1523 - reached from the
   /// Messages/Friends/Groups tab bar. Always shows "All Groups".
+  ///
+  /// Header icons: node 50:1523 itself couldn't be pulled (Figma API
+  /// 429-rate-limited mid-session, 2026-07-16) so this exact row isn't
+  /// directly confirmed. The videocam/call/more_vert icons removed here
+  /// were fake "_comingSoon" stubs regardless of the exact real layout,
+  /// and the other two frames in this same Messages/Friends/Groups
+  /// sub-tab family (Messages node 43:104, Friends node 50:1005) were
+  /// both directly confirmed to show only a search icon in this
+  /// position - matching that pattern here is a reasonable inference,
+  /// not a guess, but flagged as pending final confirmation once the
+  /// rate limit clears.
   Widget _buildEmbeddedList(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -216,7 +226,7 @@ class _GroupsPageState extends State<GroupsPage> {
         children: [
           Row(
             children: [
-              _iconChip(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
+              _plainIcon(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
               const SizedBox(width: 10),
               Text(
                 "Groups",
@@ -226,15 +236,6 @@ class _GroupsPageState extends State<GroupsPage> {
               GestureDetector(
                 onTap: () => _comingSoon(context, "Search"),
                 child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
-              ),
-              const SizedBox(width: 10),
-              _iconChip(icon: Icons.videocam_outlined, onTap: () => _comingSoon(context, "Group video call")),
-              const SizedBox(width: 8),
-              _iconChip(icon: Icons.call_outlined, onTap: () => _comingSoon(context, "Group call")),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _comingSoon(context, "More options"),
-                child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),
               ),
             ],
           ),
@@ -255,69 +256,44 @@ class _GroupsPageState extends State<GroupsPage> {
         children: [
           Row(
             children: [
-              _iconChip(icon: Icons.arrow_back, onTap: () => goHome(context)),
-              const SizedBox(width: 8),
+              // No back arrow - Groups' full directory is a main
+              // bottom-nav destination (reached via pushReplacement, same
+              // as AI Assistant/Members/Home/Courses), not a pushed
+              // screen.
               Expanded(
-                child: Container(
+                child: K54SearchField(
+                  controller: _searchController,
+                  onChanged: _allGroupsController.search,
+                  hintText: "Search groups",
                   height: 24,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.groupCardBackground,
-                    borderRadius: BorderRadius.circular(9999),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search, size: 14, color: AppColors.gold),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _allGroupsController.search,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            hintText: "Search groups",
-                            hintStyle: GoogleFonts.poppins(fontSize: 12, color: AppColors.gold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  iconSize: 14,
+                  fontSize: 12,
                 ),
               ),
               const SizedBox(width: 8),
-              _iconChip(icon: Icons.filter_alt_outlined, onTap: () => _comingSoon(context, "Filters")),
+              CompositedTransformTarget(
+                link: _filterLayerLink,
+                child: _plainIcon(icon: Icons.filter_alt_outlined, onTap: _openFilterPopover),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: List.generate(tabs.length, (index) {
-              final isSelected = selectedTab == index;
-              return Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() => selectedTab = index);
-                    if (index == 2) _createGroup();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isSelected ? AppColors.green : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      tabs[index],
-                      style: GoogleFonts.poppins(fontSize: 10, color: AppColors.jetBlack),
-                    ),
-                  ),
-                ),
-              );
-            }),
+          UnderlineTabRow(
+            tabs: tabs,
+            selectedIndex: selectedTab,
+            onChanged: (index) {
+              // "Create a Group" is a dialog trigger, not a real content
+              // tab - it used to also become the "selected" tab, which
+              // left the underline stuck there after the dialog closed
+              // (with the list underneath silently still showing "All
+              // Groups", since nothing renders a dedicated tab-2 body).
+              // Found via a code trace, not runtime testing.
+              if (index == 2) {
+                _createGroup();
+                return;
+              }
+              setState(() => selectedTab = index);
+            },
           ),
           const SizedBox(height: 12),
           if (selectedTab == 0) ...[
@@ -337,12 +313,6 @@ class _GroupsPageState extends State<GroupsPage> {
   /// 2-column grid the way member cards are, so that part is skipped
   /// rather than forcing a broken-looking layout.
   Widget _buildGroupsToolbar() {
-    const sortOptions = {
-      "last_activity": "Recently Active",
-      "date_created": "Newest",
-      "name": "Alphabetical",
-      "total_member_count": "Most Members",
-    };
     final total = _allGroupsController.totalCount;
     return Row(
       children: [
@@ -364,7 +334,7 @@ class _GroupsPageState extends State<GroupsPage> {
               icon: const Icon(Icons.keyboard_arrow_down, size: 15),
               isDense: true,
               style: GoogleFonts.poppins(fontSize: 11, color: AppColors.jetBlack),
-              items: sortOptions.entries
+              items: _sortOptions.entries
                   .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                   .toList(),
               onChanged: (value) {
@@ -384,25 +354,19 @@ class _GroupsPageState extends State<GroupsPage> {
     final groups = selectedTab == 1 ? _myGroupsController.groups : _allGroupsController.groups;
 
     if (loading && groups.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+      return const SkeletonRowList();
     }
     if (error != null && groups.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load groups.\n$error", textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => selectedTab == 1 ? _myGroupsController.load() : _allGroupsController.load(),
-              child: const Text("Retry"),
-            ),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load groups.\n$error",
+        onRetry: () => selectedTab == 1 ? _myGroupsController.load() : _allGroupsController.load(),
       );
     }
     if (groups.isEmpty) {
-      return Center(child: Text(selectedTab == 1 ? "You haven't joined any groups yet" : "No groups found"));
+      return K54EmptyState(
+        icon: Icons.groups_outlined,
+        message: selectedTab == 1 ? "You haven't joined any groups yet" : "No groups found",
+      );
     }
 
     if (embedded) {
@@ -420,7 +384,10 @@ class _GroupsPageState extends State<GroupsPage> {
     return RefreshIndicator(
       color: AppColors.green,
       onRefresh: () async => controller?.load() ?? _myGroupsController.load(),
-      child: ListView.separated(
+      child: Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: Responsive.isTablet(context) ? 640 : double.infinity),
+        child: ListView.separated(
         controller: selectedTab == 0 ? _scrollController : null,
         itemCount: groups.length + (_allGroupsController.loadingMore && selectedTab == 0 ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -437,40 +404,17 @@ class _GroupsPageState extends State<GroupsPage> {
             child: _groupCard(context, groups[index]),
           );
         },
+        ),
+      ),
       ),
     );
   }
 
   Widget _embeddedGroupTile(Group group) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.friendRowBackground,
-        border: Border.all(color: AppColors.friendRowBorder),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: group.avatarUrl != null && group.avatarUrl!.isNotEmpty
-                ? NetworkImage(group.avatarUrl!)
-                : null,
-            child: group.avatarUrl == null || group.avatarUrl!.isEmpty
-                ? Text(group.name.isNotEmpty ? group.name[0] : "?")
-                : null,
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              group.name,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.jetBlack),
-            ),
-          ),
-          const Icon(Icons.groups_outlined, size: 20, color: AppColors.jetBlack),
-        ],
-      ),
+    return ContactRow(
+      avatarUrl: group.avatarUrl,
+      title: group.name,
+      trailing: const Icon(Icons.groups_outlined, size: 20, color: AppColors.jetBlack),
     );
   }
 
@@ -479,12 +423,21 @@ class _GroupsPageState extends State<GroupsPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.groupCardBackground,
+        // Exact colors from the GROUPS Figma frame (node 87:76, "member
+        // comp"), pulled via the REST API 2026-07-16 - was the tan/
+        // sage-green pair (groupCardBackground/groupCardAccent) before
+        // this measurement existed.
+        color: const Color(0xFFFCF8ED),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.groupCardAccent),
+        border: Border.all(color: AppColors.green),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
+      // Explicit ClipRRect (inset 1px inside the border stroke) instead of
+      // relying on Container's own clipBehavior - that didn't reliably
+      // round the cover image's top corners in practice (same bug found
+      // and fixed on MemberCard's bottom action-row strip).
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(23),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
@@ -507,15 +460,7 @@ class _GroupsPageState extends State<GroupsPage> {
                   height: 80,
                   padding: const EdgeInsets.all(5),
                   decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: group.avatarUrl != null && group.avatarUrl!.isNotEmpty
-                        ? NetworkImage(group.avatarUrl!)
-                        : null,
-                    child: group.avatarUrl == null || group.avatarUrl!.isEmpty
-                        ? Text(group.name.isNotEmpty ? group.name[0] : "?")
-                        : null,
-                  ),
+                  child: UserAvatar(imageUrl: group.avatarUrl, name: group.name),
                 ),
               ),
             ],
@@ -546,44 +491,27 @@ class _GroupsPageState extends State<GroupsPage> {
                   ],
                 ),
                 const SizedBox(height: 13),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _toggleMembership(group),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isMember ? AppColors.groupCardAccent : Colors.transparent,
-                          border: Border.all(color: AppColors.groupCardAccent, width: 0.5),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              isMember ? Icons.check : Icons.add,
-                              size: 12,
-                              color: isMember ? AppColors.jetBlack : AppColors.groupMutedText,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              isMember ? "Joined" : "Join Group",
-                              style: GoogleFonts.lato(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: isMember ? AppColors.jetBlack : AppColors.groupMutedText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                // Right-aligned pill, matching Figma's "Organizer"/"Join
+                // Group" button placement (node 87:76) - the member-avatar
+                // stack shown alongside it in Figma is skipped since no
+                // confirmed endpoint returns per-group member avatars.
+                // Shared PressablePill rather than a hand-rolled button, so
+                // it picks up the app-wide active/inactive button colors.
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: PressablePill(
+                    label: isMember ? "Joined" : "Join Group",
+                    icon: isMember ? Icons.check : Icons.add,
+                    filled: isMember,
+                    height: 34,
+                    onTap: () => _toggleMembership(group),
+                  ),
                 ),
               ],
             ),
           ),
         ],
+        ),
       ),
     );
   }

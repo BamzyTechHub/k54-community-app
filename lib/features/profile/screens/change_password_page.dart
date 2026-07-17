@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/widgets/inline_status_card.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 
 /// Wired to the confirmed WordPress core REST endpoint
@@ -28,6 +29,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   bool hideNewPassword = true;
   bool hideConfirmPassword = true;
   bool _saving = false;
+  String? _errorMessage;
+  bool _succeeded = false;
 
   @override
   void dispose() {
@@ -37,25 +40,37 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     super.dispose();
   }
 
+  // A special character is required client-side even though the real
+  // WordPress endpoint (POST /wp/v2/users/me) has no password-complexity
+  // rule of its own - matches the Figma "General Validation" card, which
+  // is a real UX requirement this form should enforce regardless of what
+  // the backend would otherwise accept.
+  static final _specialCharPattern = RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=]');
+
   Future<void> _save() async {
+    setState(() {
+      _errorMessage = null;
+      _succeeded = false;
+    });
+
     if (currentPasswordController.text.isEmpty ||
         newPasswordController.text.isEmpty ||
         confirmPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+      setState(() => _errorMessage = "Please fill all fields");
       return;
     }
     if (newPasswordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("New passwords do not match")),
-      );
+      // Matches the Figma "Password Error Handling message" card exactly.
+      setState(() => _errorMessage = "Passwords do not match");
       return;
     }
     if (newPasswordController.text.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password must be at least 8 characters")),
-      );
+      setState(() => _errorMessage = "Password must be at least 8 characters");
+      return;
+    }
+    if (!_specialCharPattern.hasMatch(newPasswordController.text)) {
+      // Matches the Figma "General Validation" card exactly.
+      setState(() => _errorMessage = "Password must contain at least one special character");
       return;
     }
 
@@ -63,15 +78,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     try {
       await AuthService().updatePassword(newPasswordController.text);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password updated successfully")),
-      );
-      Navigator.pop(context);
+      setState(() => _succeeded = true);
+      // Lets the inline success card (matching Figma's "Password Success
+      // Update" design) actually be seen before returning, instead of an
+      // instant pop that only a SnackBar briefly announced.
+      await Future.delayed(const Duration(milliseconds: 1400));
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't update password: $e")),
-      );
+      setState(() => _errorMessage = "Couldn't update password: $e");
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -83,21 +98,29 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     required bool hidden,
     required VoidCallback onToggle,
   }) {
+    // Plain label above the field, not a floating InputDecoration label -
+    // matches the Figma screenshot.
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: TextField(
-        controller: controller,
-        obscureText: hidden,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFFF5EFD9),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-          suffixIcon: IconButton(
-            icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-            onPressed: onToggle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: controller,
+            obscureText: hidden,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFF5EFD9),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+              suffixIcon: IconButton(
+                icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                onPressed: onToggle,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -120,6 +143,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 ],
               ),
               const SizedBox(height: 25),
+              if (_succeeded)
+                const InlineSuccessCard(message: "Your password has been successfully updated"),
+              if (_errorMessage != null) InlineErrorCard(message: _errorMessage!),
               _passwordField(
                 label: "Current Password",
                 controller: currentPasswordController,

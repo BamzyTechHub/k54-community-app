@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/utils/open_profile.dart';
+import 'package:k54_mobile/core/utils/responsive.dart';
+import 'package:k54_mobile/core/widgets/contact_row.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
+import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
+import 'package:k54_mobile/core/widgets/state_views.dart';
 import 'package:k54_mobile/features/friends/controllers/friends_controller.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
-import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 
 /// Friends list header + row layout match the K54 Figma file exactly
 /// (node 50:1005 "Friends", measured 2026-07-08): back button, title,
@@ -37,7 +42,13 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   final FriendsListController _listController = FriendsListController();
   final FriendsRequestsController _requestsController = FriendsRequestsController();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+
+  // Collapsed by default, same fix as Messages' header - the field only
+  // appears after tapping the search icon rather than being permanently
+  // visible.
+  bool _searchExpanded = false;
 
   @override
   void initState() {
@@ -48,6 +59,11 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     _listController.load();
     _requestsController.load();
     _scrollController.addListener(_onScroll);
+    _searchFocusNode.addListener(() {
+      if (!_searchFocusNode.hasFocus && _searchController.text.isEmpty) {
+        setState(() => _searchExpanded = false);
+      }
+    });
   }
 
   void _onScroll() {
@@ -63,6 +79,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     _listController.dispose();
     _requestsController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -78,6 +95,18 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("$feature is coming soon")),
     );
+  }
+
+  // The header search icon lives outside the TabBarView, but the actual
+  // search field only renders on the Friends tab - switch there first
+  // (if the Requests tab is active) so focus lands on a field that
+  // actually exists, instead of silently doing nothing.
+  void _focusSearch() {
+    if (_tabController.index != 0) {
+      _tabController.animateTo(0);
+    }
+    setState(() => _searchExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _searchFocusNode.requestFocus());
   }
 
   Future<void> _accept(Friendship f) async {
@@ -108,10 +137,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   }
 
   void _openProfile(String userId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ProfilePage(userId: userId)),
-    );
+    openProfile(context, userId);
   }
 
   Widget _iconButton({required IconData icon, required VoidCallback onTap}) {
@@ -154,24 +180,18 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                     ),
                   ),
                   const Spacer(),
+                  // Only a search icon exists in the real header (node
+                  // 50:1005) - re-verified directly against the raw JSON
+                  // 2026-07-16. The videocam/call/more_vert icons here
+                  // were an unverified assumption carried over from a
+                  // different screen's header and were fake stubs anyway;
+                  // removed rather than left as dead UI. Tapping search
+                  // focuses the real search field below (switching to the
+                  // Friends tab first if needed) instead of showing its
+                  // own "coming soon" next to a field that already works.
                   GestureDetector(
-                    onTap: () => _comingSoon("Search"),
+                    onTap: _focusSearch,
                     child: const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
-                  ),
-                  const SizedBox(width: 10),
-                  _iconButton(
-                    icon: Icons.videocam_outlined,
-                    onTap: () => _comingSoon("Group video call"),
-                  ),
-                  const SizedBox(width: 8),
-                  _iconButton(
-                    icon: Icons.call_outlined,
-                    onTap: () => _comingSoon("Group call"),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _comingSoon("More options"),
-                    child: const Icon(Icons.more_vert, size: 18, color: AppColors.jetBlack),
                   ),
                 ],
               ),
@@ -206,21 +226,22 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   Widget _buildFriendsTab() {
     return Column(
       children: [
-        TextField(
-          controller: _searchController,
-          onChanged: _listController.search,
-          decoration: InputDecoration(
-            hintText: "Search friends...",
-            prefixIcon: const Icon(Icons.search),
-            filled: true,
-            fillColor: const Color(0xFFF7F7F7),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-          ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: _searchExpanded
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: K54SearchField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    onChanged: _listController.search,
+                    hintText: "Search friends...",
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
         ),
-        const SizedBox(height: 12),
         Expanded(child: _buildFriendsBody()),
       ],
     );
@@ -228,18 +249,12 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
 
   Widget _buildFriendsBody() {
     if (_listController.loading && _listController.friends.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+      return const SkeletonRowList();
     }
     if (_listController.error != null && _listController.friends.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load friends.\n${_listController.error}", textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _listController.load, child: const Text("Retry")),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load friends.\n${_listController.error}",
+        onRetry: _listController.load,
       );
     }
 
@@ -250,8 +265,8 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
         onRefresh: _listController.load,
         child: ListView(
           children: const [
-            SizedBox(height: 120),
-            Center(child: Text("No friends yet")),
+            SizedBox(height: 100),
+            K54EmptyState(icon: Icons.person_add_alt_outlined, message: "No friends yet"),
           ],
         ),
       );
@@ -260,61 +275,44 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     return RefreshIndicator(
       color: AppColors.green,
       onRefresh: _listController.load,
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: friends.length + (_listController.loadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= friends.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
-                ),
-              ),
-            );
-          }
-          return _friendTile(friends[index]);
-        },
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: Responsive.isTablet(context) ? 640 : double.infinity),
+          child: ListView.builder(
+            controller: _scrollController,
+            itemCount: friends.length + (_listController.loadingMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index >= friends.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
+                    ),
+                  ),
+                );
+              }
+              return _friendTile(friends[index]);
+            },
+          ),
+        ),
       ),
     );
   }
 
   Widget _friendTile(Friendship f) {
-    return TapScale(
-      onTap: () => _openProfile(f.otherUserId),
-      onLongPress: () => _removeFriendConfirm(f),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.friendRowBackground,
-          border: Border.all(color: AppColors.friendRowBorder),
-        ),
-        child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ContactRow(
+        avatarUrl: f.otherUserAvatar,
+        title: f.otherUserName,
+        onTap: () => _openProfile(f.otherUserId),
+        onLongPress: () => _removeFriendConfirm(f),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage:
-                  f.otherUserAvatar != null ? NetworkImage(f.otherUserAvatar!) : null,
-              child: f.otherUserAvatar == null
-                  ? Text(f.otherUserName.isNotEmpty ? f.otherUserName[0].toUpperCase() : "?")
-                  : null,
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Text(
-                f.otherUserName,
-                style: GoogleFonts.lato(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.jetBlack,
-                ),
-              ),
-            ),
             _iconButton(icon: Icons.call_outlined, onTap: () => _comingSoon("Voice calling")),
             const SizedBox(width: 8),
             _iconButton(icon: Icons.videocam_outlined, onTap: () => _comingSoon("Video calling")),
@@ -333,6 +331,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: K54Dialog.shape,
         title: const Text("Remove friend"),
         content: Text("Remove ${f.otherUserName} from your friends?"),
         actions: [
@@ -359,19 +358,12 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
 
   Widget _buildRequestsTab() {
     if (_requestsController.loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+      return const SkeletonRowList();
     }
     if (_requestsController.error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load requests.\n${_requestsController.error}",
-                textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _requestsController.load, child: const Text("Retry")),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load requests.\n${_requestsController.error}",
+        onRetry: _requestsController.load,
       );
     }
 
@@ -384,8 +376,8 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
         onRefresh: _requestsController.load,
         child: ListView(
           children: const [
-            SizedBox(height: 120),
-            Center(child: Text("No pending requests")),
+            SizedBox(height: 100),
+            K54EmptyState(icon: Icons.mark_email_unread_outlined, message: "No pending requests"),
           ],
         ),
       );
@@ -435,33 +427,12 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
   Widget _requestTile(Friendship f, {required List<Widget> actions}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.friendRowBackground,
-          border: Border.all(color: AppColors.friendRowBorder),
-        ),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: () => _openProfile(f.otherUserId),
-              child: CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage:
-                    f.otherUserAvatar != null ? NetworkImage(f.otherUserAvatar!) : null,
-                child: f.otherUserAvatar == null
-                    ? Text(f.otherUserName.isNotEmpty ? f.otherUserName[0].toUpperCase() : "?")
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(f.otherUserName, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            ...actions,
-          ],
-        ),
+      child: ContactRow(
+        avatarUrl: f.otherUserAvatar,
+        title: f.otherUserName,
+        titleStyle: const TextStyle(fontWeight: FontWeight.w600),
+        onTap: () => _openProfile(f.otherUserId),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: actions),
       ),
     );
   }

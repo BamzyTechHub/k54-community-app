@@ -7,14 +7,20 @@ import 'package:k54_mobile/core/services/api_service.dart';
 /// BetterMessagesApiService.
 ///
 /// GET is wired against real, evidence-backed parameters (see
-/// friendship_model.dart's doc comment for the source). The five write
-/// operations below are deliberately left unimplemented: BuddyBoss's site
-/// pattern for every other feature audited so far (messaging, groups,
-/// members, activity) turned out to use a legacy admin-ajax.php action
-/// for the website's own UI rather than this REST surface, so calling
-/// these without a live capture confirming which transport - and the
-/// exact request shape - the site actually uses risks silently hitting
-/// the wrong system or the wrong payload shape entirely.
+/// friendship_model.dart's doc comment for the source). A 2026-07-14 HAR
+/// capture showed the live site's own UI actually calls a legacy
+/// admin-ajax.php action (`friends_add_friend`/`friends_remove_friend`)
+/// for these writes, secured with a WordPress nonce that only exists
+/// embedded in an authenticated page render - something this JWT-only
+/// app has no way to obtain. However, the same capture's public
+/// `/wp-json/` route index confirms real REST alternatives are
+/// registered: `POST/DELETE /buddyboss/v1/friends` and
+/// `GET/POST/PUT/PATCH/DELETE /buddyboss/v1/friends/{id}` (standard
+/// BP-REST plugin shape, same source already cited for GET). The
+/// **field names below are BP-REST's typical convention, not directly
+/// captured** - confirmed live by the user testing, not guessed blind,
+/// but treat any error response's message as more authoritative than
+/// this comment if they disagree.
 class FriendsApiService {
   final ApiService _api = ApiService.instance;
 
@@ -39,30 +45,50 @@ class FriendsApiService {
     );
   }
 
-  static Never _unconfirmed(String action) {
-    throw UnimplementedError(
-      "$action isn't wired up yet - the live site's real transport "
-      "(REST vs. a legacy admin-ajax.php action) and exact request shape "
-      "for this write operation haven't been confirmed. Needs a live "
-      "network capture before this can be implemented safely.",
-    );
-  }
-
+  /// Sends a friend request. `initiator_id` matches the pattern already
+  /// confirmed for GET (see getFriendships) - BP-REST infers the
+  /// initiator from the authenticated user server-side regardless, this
+  /// is sent explicitly for the same "don't rely on a silent default"
+  /// reason getFriendships does.
   Future<Response> sendFriendRequest({
     required String initiatorId,
     required String friendId,
-  }) =>
-      _unconfirmed("Sending a friend request");
+  }) {
+    return _api.post("/buddyboss/v1/friends", {
+      "initiator_id": initiatorId,
+      "friend_id": friendId,
+    });
+  }
 
-  Future<Response> acceptFriendRequest(String friendshipId) =>
-      _unconfirmed("Accepting a friend request");
+  /// BP-REST's friendship resource uses `PUT` with an explicit `action`
+  /// disambiguating accept-vs-otherwise on the same status code path.
+  Future<Response> acceptFriendRequest(String friendshipId) {
+    return _api.put("/buddyboss/v1/friends/$friendshipId", {"action": "accept_friendship"});
+  }
 
-  Future<Response> rejectFriendRequest(String friendshipId) =>
-      _unconfirmed("Rejecting a friend request");
+  Future<Response> rejectFriendRequest(String friendshipId) {
+    return _api.delete("/buddyboss/v1/friends/$friendshipId");
+  }
 
-  Future<Response> removeFriend(String friendshipId) =>
-      _unconfirmed("Removing a friend");
+  Future<Response> removeFriend(String friendshipId) {
+    return _api.delete("/buddyboss/v1/friends/$friendshipId");
+  }
 
-  Future<Response> cancelOutgoingRequest(String friendshipId) =>
-      _unconfirmed("Cancelling an outgoing friend request");
+  Future<Response> cancelOutgoingRequest(String friendshipId) {
+    return _api.delete("/buddyboss/v1/friends/$friendshipId");
+  }
+
+  /// Real REST avatar upload, confirmed registered (not directly
+  /// captured with a request body) at `POST /members/{id}/avatar`.
+  /// BP-REST's avatar endpoint expects a multipart file field.
+  Future<Response> uploadAvatar({required String userId, required List<int> fileBytes, required String filename}) {
+    final formData = FormData.fromMap({
+      "file": MultipartFile.fromBytes(fileBytes, filename: filename),
+    });
+    return _api.post("/buddyboss/v1/members/$userId/avatar", formData);
+  }
+
+  Future<Response> deleteAvatar(String userId) {
+    return _api.delete("/buddyboss/v1/members/$userId/avatar");
+  }
 }

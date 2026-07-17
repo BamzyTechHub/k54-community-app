@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/inline_status_card.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/profile/screens/email_verification_pending_page.dart';
 
@@ -27,6 +28,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
 
   bool _loading = true;
   bool _saving = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -54,16 +56,15 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
   }
 
   Future<void> _save() async {
+    setState(() => _errorMessage = null);
+
     if (newEmailController.text.trim().isEmpty || confirmEmailController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+      setState(() => _errorMessage = "Please fill all fields");
       return;
     }
     if (newEmailController.text.trim() != confirmEmailController.text.trim()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Emails do not match")),
-      );
+      // Matches the Figma "Email Error Handling message" card exactly.
+      setState(() => _errorMessage = "Error: Emails do not match. Please check the email inputs.");
       return;
     }
 
@@ -78,27 +79,34 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't update email: $e")),
-      );
+      setState(() => _errorMessage = "Couldn't update email: $e");
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
   Widget _field({required String label, required TextEditingController controller, bool enabled = true}) {
+    // Plain label above the field, not a floating InputDecoration label -
+    // matches the Figma screenshot ("Current Email Address" sits above
+    // the box, not overlapping its border).
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: TextField(
-        controller: controller,
-        enabled: enabled,
-        keyboardType: TextInputType.emailAddress,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFFF5EFD9),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: controller,
+            enabled: enabled,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFF5EFD9),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -106,7 +114,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: SafeArea(child: Center(child: CircularProgressIndicator())));
+      return const Scaffold(body: SafeArea(child: Center(child: CircularProgressIndicator(color: AppColors.green))));
     }
 
     return Scaffold(
@@ -125,6 +133,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                 ],
               ),
               const SizedBox(height: 25),
+              if (_errorMessage != null) InlineErrorCard(message: _errorMessage!),
               _field(label: "Current Email", controller: currentEmailController, enabled: false),
               _field(label: "New Email", controller: newEmailController),
               _field(label: "Confirm Email", controller: confirmEmailController),

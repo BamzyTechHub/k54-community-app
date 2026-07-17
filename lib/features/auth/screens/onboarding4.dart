@@ -74,35 +74,13 @@ class Onboarding4 extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Go Back Button
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(context);
-                },
-
-                child: Container(
-                  width: double.infinity,
-                  height: 55,
-
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(25),
-
-                    border: Border.all(
-                      color: const Color(0xFFDAD7D7),
-                    ),
-                  ),
-
-                  child: const Center(
-                    child: Text(
-                      "Go Back",
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                ),
+              // Go Back Button - green outline/text, matching the Figma
+              // frame exactly (was grey, which doesn't appear anywhere in
+              // that frame).
+              PrimaryButton(
+                label: "Go Back",
+                outline: true,
+                onPressed: () => Navigator.pop(context),
               ),
 
               const SizedBox(height: 40),

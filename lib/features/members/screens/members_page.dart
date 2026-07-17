@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/utils/nav.dart';
+import 'package:k54_mobile/core/utils/k54_route.dart';
+import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/utils/responsive.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
+import 'package:k54_mobile/core/widgets/k54_search_field.dart';
 import 'package:k54_mobile/core/widgets/member_card.dart';
+import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
+import 'package:k54_mobile/core/widgets/state_views.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/core/widgets/underline_tab_row.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/features/members/controllers/members_controller.dart';
+import 'package:k54_mobile/features/members/widgets/members_filter_popover.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
-import 'package:k54_mobile/features/profile/screens/profile_page.dart';
 
 /// Matches the K54 Figma file's Members screen exactly (node 55:1914).
 ///
@@ -41,7 +48,10 @@ class _MembersPageState extends State<MembersPage> {
     "alphabetical": "Alphabetical",
     "popular": "Most Popular",
   };
-  bool _gridView = true;
+  // Figma's default state (node 55:1914) shows the single-column list, not
+  // the 2-column grid - confirmed via the rendered card widths taking the
+  // full row.
+  bool _gridView = false;
 
   final MembersController _membersController = MembersController();
   List<Friendship> _connections = [];
@@ -50,6 +60,7 @@ class _MembersPageState extends State<MembersPage> {
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final LayerLink _filterLayerLink = LayerLink();
 
   @override
   void initState() {
@@ -96,7 +107,19 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   void _openProfile(String userId) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(userId: userId)));
+    openProfile(context, userId);
+  }
+
+  void _openFilterPopover() {
+    showMembersFilterPopover(
+      context: context,
+      layerLink: _filterLayerLink,
+      currentSort: _membersController.sortType,
+      onSortSelected: (key) => _membersController.sortBy(key),
+      onSearchFilterTapped: (label) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Filtering by $label isn't available yet")),
+      ),
+    );
   }
 
   Future<void> _openMessage(String userId) async {
@@ -105,7 +128,7 @@ class _MembersPageState extends State<MembersPage> {
       if (!mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ChatPage(threadId: thread.id, thread: thread)),
+        k54Route(ChatPage(threadId: thread.id, thread: thread)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -113,18 +136,17 @@ class _MembersPageState extends State<MembersPage> {
     }
   }
 
-  Widget _iconChip({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
+  // Figma's Members header (node 55:1914) shows the back arrow and filter
+  // icon plain, with no circular chip background - unlike Messages'
+  // header, which does use one. Kept screen-accurate rather than reused
+  // wholesale from Messages.
+  Widget _plainIcon({required IconData icon, required VoidCallback onTap}) {
+    return TapScale(
       onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppColors.iconButtonBackground,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 16, color: AppColors.jetBlack),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(icon, size: 22, color: AppColors.jetBlack),
       ),
     );
   }
@@ -141,66 +163,35 @@ class _MembersPageState extends State<MembersPage> {
             children: [
               Row(
                 children: [
-                  _iconChip(icon: Icons.arrow_back, onTap: () => goHome(context)),
-                  const SizedBox(width: 8),
+                  // No back arrow - Members is a main bottom-nav
+                  // destination (reached via pushReplacement, same as AI
+                  // Assistant/Home/Groups/Courses), not a pushed screen,
+                  // and the real header doesn't show one. Confirmed
+                  // 2026-07-18 after the user pointed out the header had
+                  // an extra element beside the search bar that Figma
+                  // doesn't have.
                   Expanded(
-                    child: Container(
+                    child: K54SearchField(
+                      controller: _searchController,
+                      onChanged: _membersController.search,
+                      hintText: "Search members",
                       height: 24,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.groupCardBackground,
-                        borderRadius: BorderRadius.circular(9999),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search, size: 14, color: AppColors.gold),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              onChanged: _membersController.search,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                border: InputBorder.none,
-                                hintText: "Search members",
-                                hintStyle: GoogleFonts.poppins(fontSize: 12, color: AppColors.gold),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      iconSize: 14,
+                      fontSize: 12,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _iconChip(icon: Icons.filter_list, onTap: () => _comingSoon("Filters")),
+                  CompositedTransformTarget(
+                    link: _filterLayerLink,
+                    child: _plainIcon(icon: Icons.filter_alt_outlined, onTap: _openFilterPopover),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: List.generate(tabs.length, (index) {
-                  final isSelected = selectedTab == index;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    child: GestureDetector(
-                      onTap: () => setState(() => selectedTab = index),
-                      child: Container(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: isSelected ? AppColors.green : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          tabs[index],
-                          style: GoogleFonts.poppins(fontSize: 10, color: AppColors.jetBlack),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+              UnderlineTabRow(
+                tabs: tabs,
+                selectedIndex: selectedTab,
+                onChanged: (index) => setState(() => selectedTab = index),
               ),
               const SizedBox(height: 12),
               if (selectedTab == 0) ...[
@@ -287,7 +278,7 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _viewToggleIcon(IconData icon, bool selected, VoidCallback onTap) {
-    return GestureDetector(
+    return TapScale(
       onTap: onTap,
       child: Container(
         width: 28,
@@ -299,22 +290,18 @@ class _MembersPageState extends State<MembersPage> {
 
   Widget _buildAllMembers() {
     if (_membersController.loading && _membersController.members.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+      return _gridView
+          ? SkeletonCardGrid(crossAxisCount: Responsive.gridColumns(context))
+          : const SkeletonRowList();
     }
     if (_membersController.error != null && _membersController.members.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load members.\n${_membersController.error}", textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(onPressed: () => _membersController.load(), child: const Text("Retry")),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load members.\n${_membersController.error}",
+        onRetry: () => _membersController.load(),
       );
     }
     if (_membersController.members.isEmpty) {
-      return const Center(child: Text("No members found"));
+      return const K54EmptyState(icon: Icons.people_outline, message: "No members found");
     }
 
     final members = _membersController.members;
@@ -362,22 +349,16 @@ class _MembersPageState extends State<MembersPage> {
 
   Widget _buildConnections() {
     if (_loadingConnections) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.green));
+      return const SkeletonRowList();
     }
     if (_connectionsError != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load connections.\n$_connectionsError", textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _loadConnections, child: const Text("Retry")),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load connections.\n$_connectionsError",
+        onRetry: _loadConnections,
       );
     }
     if (_connections.isEmpty) {
-      return const Center(child: Text("No connections yet"));
+      return const K54EmptyState(icon: Icons.people_outline, message: "No connections yet");
     }
 
     return RefreshIndicator(
@@ -398,13 +379,40 @@ class _MembersPageState extends State<MembersPage> {
     );
   }
 
+  Future<void> _blockMember(String id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: K54Dialog.shape,
+        title: const Text("Block member"),
+        content: Text("Block $name? They won't be able to message you."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Block", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await MessagingRepository.instance.blockUser(id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$name has been blocked")));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't block $name: $e")));
+    }
+  }
+
   Widget _memberCard({required String id, required String name, String? avatarUrl}) {
     return MemberCard(
       id: id,
       name: name,
       avatarUrl: avatarUrl,
       onTap: () => _openProfile(id),
-      onBlock: () => _comingSoon("Block"),
+      onBlock: () => _blockMember(id, name),
       onConnect: () => _comingSoon("Connect"),
       onMessage: () => _openMessage(id),
       onCall: () => _comingSoon("Voice call"),

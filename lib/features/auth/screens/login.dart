@@ -1,5 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
+import 'package:k54_mobile/core/widgets/social_button.dart';
 import 'package:k54_mobile/features/auth/screens/touch_id.dart';
 import 'package:k54_mobile/features/auth/screens/forgot_password.dart';
 import 'package:k54_mobile/features/auth/screens/signup.dart';
@@ -22,6 +25,14 @@ class _LoginState extends State<Login> {
   final TextEditingController passwordController =
       TextEditingController();
 
+  // Drive the gray fill-on-focus look confirmed against the Log In
+  // Figma frames (both variants show the actively-focused field with a
+  // light gray background in addition to the green border) - plain
+  // InputDecoration has no built-in "fill only while focused" behavior,
+  // so this needs an explicit FocusNode + listener to rebuild.
+  final FocusNode emailFocus = FocusNode();
+  final FocusNode passwordFocus = FocusNode();
+
       final AuthService authService =
     AuthService();
   bool rememberMe = false;
@@ -33,6 +44,17 @@ void initState() {
   super.initState();
 
   loadRememberMe();
+  emailFocus.addListener(() => setState(() {}));
+  passwordFocus.addListener(() => setState(() {}));
+}
+
+@override
+void dispose() {
+  emailController.dispose();
+  passwordController.dispose();
+  emailFocus.dispose();
+  passwordFocus.dispose();
+  super.dispose();
 }
 
 Future<void> loadRememberMe() async {
@@ -90,10 +112,36 @@ Future<void> _login() async {
     }
   } catch (e) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_describeLoginError(e)),
+        duration: const Duration(seconds: 10),
+      ),
+    );
   } finally {
     if (mounted) setState(() => _loggingIn = false);
   }
+}
+
+// Turns a DioException into a message a non-technical tester can
+// screenshot and send back, that still tells us exactly which stage
+// failed - added 2026-07-16 to diagnose a release-build "login times
+// out after 30s" report from a remote tester with no adb/log access.
+String _describeLoginError(Object e) {
+  if (e is DioException) {
+    final stage = switch (e.type) {
+      DioExceptionType.connectionTimeout => "couldn't connect to the server (connect timeout)",
+      DioExceptionType.sendTimeout => "timed out sending the request",
+      DioExceptionType.receiveTimeout => "connected, but got no response back (receive timeout)",
+      DioExceptionType.connectionError => "connection error (${e.error})",
+      DioExceptionType.badResponse => "server responded with ${e.response?.statusCode}",
+      DioExceptionType.badCertificate => "SSL certificate error",
+      DioExceptionType.cancel => "request was cancelled",
+      _ => "unknown error (${e.message})",
+    };
+    return "Login failed: $stage";
+  }
+  return "Login failed: $e";
 }
 
   @override
@@ -143,25 +191,33 @@ Future<void> _login() async {
                 // Email Field
                 TextField(
   controller: emailController,
+  focusNode: emailFocus,
                   decoration: InputDecoration(
                     labelText: "Email",
                     hintText: "Enter Email",
 
                     prefixIcon: const Icon(Icons.email_outlined),
 
+                    // Gray fill only while focused - confirmed against
+                    // both Log In Figma frames, which show the active
+                    // field with a light gray background on top of the
+                    // green border, not just the border alone.
+                    filled: emailFocus.hasFocus,
+                    fillColor: const Color(0xFFFCF8ED),
+
                     enabledBorder: OutlineInputBorder(
                       borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(12),
 
                       borderSide: const BorderSide(
-                        color: Color(0xFF008000),
-                        width: 2,
+                        color: AppColors.border,
+                        width: 1,
                       ),
                     ),
 
                     focusedBorder: OutlineInputBorder(
                       borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(12),
 
                       borderSide: const BorderSide(
                         color: Color(0xFF008000),
@@ -178,6 +234,7 @@ Future<void> _login() async {
                 // Password Field
                 TextField(
   controller: passwordController,
+  focusNode: passwordFocus,
                   obscureText: hidePassword,
 
                   decoration: InputDecoration(
@@ -186,6 +243,9 @@ Future<void> _login() async {
 
                     prefixIcon:
                         const Icon(Icons.lock_outline),
+
+                    filled: passwordFocus.hasFocus,
+                    fillColor: const Color(0xFFFCF8ED),
 
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -203,22 +263,22 @@ Future<void> _login() async {
 
                     border: OutlineInputBorder(
                       borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(12),
                     ),
 
                     enabledBorder: OutlineInputBorder(
                       borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(12),
 
                       borderSide: const BorderSide(
-                        color: Color(0xFF008000),
-                        width: 2,
+                        color: AppColors.border,
+                        width: 1,
                       ),
                     ),
 
                     focusedBorder: OutlineInputBorder(
                       borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(12),
 
                       borderSide: const BorderSide(
                         color: Color(0xFF008000),
@@ -257,17 +317,21 @@ const SizedBox(height: 10),
                 Row(
                   children: [
 
-                    Checkbox(
-                      value: rememberMe,
-
-                      activeColor:
-                          const Color(0xFF008000),
-
-                      onChanged: (value) {
-                        setState(() {
-                          rememberMe = value!;
-                        });
-                      },
+                    GestureDetector(
+                      onTap: () => setState(() => rememberMe = !rememberMe),
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: rememberMe ? const Color(0xFF008000) : Colors.transparent,
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: rememberMe
+                            ? const Icon(Icons.check, size: 18, color: Colors.white)
+                            : null,
+                      ),
                     ),
 
                     const Text(
@@ -354,36 +418,36 @@ Row(
                 const Text(
                   "Or",
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.jetBlack,
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
                 // Google Button
-                 GestureDetector(
-  onTap: () {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        "Google login will be connected later.",
-      ),
-    ),
-  );
-},
-
-  child: _socialButton(
-    "assets/images/google.png",
-    "Continue with Google",
-  ),
-),
+                SocialButton(
+                  iconAsset: "assets/images/google.png",
+                  label: "Continue with Google",
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Google login will be connected later.")),
+                    );
+                  },
+                ),
 
                 const SizedBox(height: 18),
 
                 // Facebook Button
-                _socialButton(
-                  "assets/images/facebook.png",
-                  "Continue with Facebook",
+                SocialButton(
+                  iconAsset: "assets/images/facebook.png",
+                  label: "Continue with Facebook",
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Facebook login will be connected later.")),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 25),
@@ -422,49 +486,6 @@ Row(
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _socialButton(
-      String image,
-      String text) {
-
-    return Container(
-      height: 55,
-      width: double.infinity,
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(16),
-
-        border: Border.all(
-          color: const Color(0xFFDAD7D7),
-        ),
-      ),
-
-      child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
-
-        children: [
-
-          Image.asset(
-            image,
-            width: 24,
-          ),
-
-          const SizedBox(width: 12),
-
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 16,
-            ),
-          ),
-        ],
       ),
     );
   }

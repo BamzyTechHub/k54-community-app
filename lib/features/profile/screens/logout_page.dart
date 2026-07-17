@@ -99,24 +99,10 @@ class _LogoutPageState extends State<LogoutPage> {
                   onPressed: _confirmLogout,
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppColors.green, width: 1.5),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Cancel",
-                          style: GoogleFonts.lato(color: AppColors.green, fontWeight: FontWeight.w700, fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ),
+                PrimaryButton(
+                  label: "Cancel",
+                  outline: true,
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ],

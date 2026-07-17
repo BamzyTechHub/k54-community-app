@@ -58,16 +58,25 @@ class _ProfileActionsState extends State<ProfileActions> {
     }
   }
 
+  bool _requestSent = false;
+
   Future<void> _sendConnectRequest() async {
     final otherUserId = widget.otherUserId;
-    if (otherUserId == null || _sendingRequest) return;
+    if (otherUserId == null || _sendingRequest || _requestSent) return;
 
     setState(() => _sendingRequest = true);
     try {
       await FriendsRepository.instance.sendFriendRequest(otherUserId);
-      _comingSoon("Sending friend requests");
+      if (!mounted) return;
+      setState(() => _requestSent = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Friend request sent")),
+      );
     } catch (e) {
-      _comingSoon("Sending friend requests");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't send friend request: $e")),
+      );
     } finally {
       if (mounted) setState(() => _sendingRequest = false);
     }
@@ -127,10 +136,10 @@ class _ProfileActionsState extends State<ProfileActions> {
         ),
         const SizedBox(width: 10),
         _pillButton(
-          label: "Connect",
-          icon: Icons.person_add_alt_1,
+          label: _requestSent ? "Requested" : "Connect",
+          icon: _requestSent ? Icons.check : Icons.person_add_alt_1,
           loading: _sendingRequest,
-          onTap: _sendConnectRequest,
+          onTap: _requestSent ? null : _sendConnectRequest,
         ),
       ],
     );

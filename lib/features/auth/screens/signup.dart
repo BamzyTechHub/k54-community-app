@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
+import 'package:k54_mobile/core/widgets/social_button.dart';
+import 'package:k54_mobile/features/auth/screens/login.dart';
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -95,6 +98,18 @@ final AuthService authService = AuthService();
     }
   }
 
+
+  @override
+  void initState() {
+    super.initState();
+    // Drives the gray fill-on-focus look confirmed against the Sign Up
+    // Figma frames - each focus node already existed for something else
+    // (or was unused), but nothing was rebuilding on focus change, so the
+    // fields never visually reacted to focus at all.
+    for (final node in [nameFocus, emailFocus, passwordFocus, confirmFocus]) {
+      node.addListener(() => setState(() {}));
+    }
+  }
 
   @override
   void dispose() {
@@ -223,21 +238,21 @@ const SizedBox(height: 20),
 Row(
   children: [
 
-    Checkbox(
-      value: agree,
-
-      activeColor: Colors.green,
-
-      onChanged: (value) {
-
-        setState(() {
-
-          agree = value!;
-
-        });
-
-      },
-
+    GestureDetector(
+      onTap: () => setState(() => agree = !agree),
+      child: Container(
+        width: 26,
+        height: 26,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: agree ? const Color(0xFF008000) : Colors.transparent,
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: agree
+            ? const Icon(Icons.check, size: 18, color: Colors.white)
+            : null,
+      ),
     ),
 
     const Expanded(
@@ -278,44 +293,35 @@ const Text(
 
   style: TextStyle(
 
-    fontSize: 18,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    color: AppColors.jetBlack,
 
   ),
 
 ),
 const SizedBox(height: 20),
 
- GestureDetector(
-  onTap: () async {
-
-    try {
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
-
-    } catch (e) {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString(),
-          ),
-        ),
-      );
-    }
+SocialButton(
+  iconAsset: "assets/images/google.png",
+  label: "Continue with Google",
+  onTap: () {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Google login will be connected later.")),
+    );
   },
-
-  child: _buildSocialButton(
-    "Continue with Google",
-    "assets/images/google.png",
-  ),
 ),
 
 const SizedBox(height: 15),
 
-_buildSocialButton(
-  "Continue with Facebook",
-  "assets/images/facebook.png",
+SocialButton(
+  iconAsset: "assets/images/facebook.png",
+  label: "Continue with Facebook",
+  onTap: () {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Facebook login will be connected later.")),
+    );
+  },
 ),
 
 const SizedBox(height: 30),
@@ -335,13 +341,25 @@ Row(
 
    GestureDetector(
   onTap: () {
-    Navigator.pop(context);
+    // Reached from Login it can just pop back - but reached from
+    // Onboarding4 (which clears the stack via pushAndRemoveUntil) there
+    // is nothing to pop to, and an unconditional pop() was a silent
+    // no-op there. Found via a code-level trace of every entry path into
+    // this screen, not runtime testing.
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Login()),
+      );
+    }
   },
 
   child: const Text(
     "Log In",
     style: TextStyle(
-      color: Colors.green,
+      color: Color(0xFF008000),
       fontSize: 16,
       fontWeight: FontWeight.bold,
     ),
@@ -378,17 +396,22 @@ Widget _buildTextField({
 
       hintText: hint,
 
+      // Gray fill only while focused - confirmed against the Sign Up
+      // Figma frames the same way as Login's.
+      filled: focusNode.hasFocus,
+      fillColor: const Color(0xFFFCF8ED),
+
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(
-          color: Colors.grey,
+          color: AppColors.border,
         ),
       ),
 
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(
-          color: Colors.green,
+          color: Color(0xFF008000),
           width: 2,
         ),
       ),
@@ -428,17 +451,20 @@ Widget _buildPasswordField({
 
       hintText: hint,
 
+      filled: focusNode.hasFocus,
+      fillColor: const Color(0xFFFCF8ED),
+
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(
-          color: Colors.grey,
+          color: AppColors.border,
         ),
       ),
 
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(
-          color: Colors.green,
+          color: Color(0xFF008000),
           width: 2,
         ),
       ),
@@ -446,57 +472,5 @@ Widget _buildPasswordField({
   );
 }
 
-
-Widget _buildSocialButton(
-  String text,
-  String image,
-) {
-
-  return Container(
-
-    width: double.infinity,
-
-    height: 55,
-
-    decoration: BoxDecoration(
-
-      borderRadius: BorderRadius.circular(15),
-
-      border: Border.all(
-        color: Colors.grey.shade300,
-      ),
-
-    ),
-
-    child: Row(
-
-      mainAxisAlignment:
-          MainAxisAlignment.center,
-
-      children: [
-
-        Image.asset(
-          image,
-          width: 25,
-        ),
-
-        const SizedBox(width: 10),
-
-        Text(
-          text,
-
-          style: const TextStyle(
-            fontSize: 16,
-          ),
-
-        ),
-
-      ],
-
-    ),
-
-  );
-
-}
 
 }

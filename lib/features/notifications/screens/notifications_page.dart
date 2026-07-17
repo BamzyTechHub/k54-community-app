@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
+import 'package:k54_mobile/core/widgets/state_views.dart';
 import 'package:k54_mobile/features/notifications/controllers/notifications_controller.dart';
 import 'package:k54_mobile/features/notifications/models/app_notification.dart';
 
@@ -79,24 +81,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Widget _buildBody() {
     if (_controller.loading && _controller.notifications.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonRowList();
     }
     if (_controller.error != null && _controller.notifications.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Couldn't load notifications.\n${_controller.error}", textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _controller.load, child: const Text("Retry")),
-          ],
-        ),
+      return K54ErrorState(
+        message: "Couldn't load notifications.\n${_controller.error}",
+        onRetry: _controller.load,
       );
     }
     if (_controller.notifications.isEmpty) {
-      return const Center(
-        child: Text("No notifications", style: TextStyle(fontSize: 18, color: Colors.grey)),
-      );
+      return const K54EmptyState(icon: Icons.notifications_none, message: "No notifications yet");
     }
 
     return RefreshIndicator(

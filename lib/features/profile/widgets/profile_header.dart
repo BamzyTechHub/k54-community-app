@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
+import 'package:k54_mobile/core/widgets/user_avatar.dart';
 
 /// Matches the K54 Figma file's profile header exactly (measured +
 /// rendered via the Figma REST API, node 289:225 "PROFILE PAGE/TIMELINE"
@@ -30,14 +31,7 @@ class ProfileHeader extends StatelessWidget {
 
     return Column(
       children: [
-        CircleAvatar(
-          radius: 50,
-          backgroundColor: Colors.grey.shade200,
-          backgroundImage: imageProvider,
-          child: !hasImage
-              ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : "?", style: const TextStyle(fontSize: 32))
-              : null,
-        ),
+        UserAvatar(imageUrl: null, imageProvider: imageProvider, name: userName, radius: 50),
         const SizedBox(height: 10),
         Text(
           userName,

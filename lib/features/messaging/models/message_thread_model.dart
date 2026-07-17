@@ -8,6 +8,11 @@ class MessageThread {
   final String otherUserId;
   final String otherUserName;
   final String? otherUserAvatar;
+  // Real presence data - Better Messages' users[] carries
+  // status: {slug, icon, label} (confirmed live 2026-07-07, see
+  // docs/api-audit/messaging-better-messages.md), not a guessed/always-on
+  // dot.
+  final bool otherUserOnline;
   final String lastMessagePreview;
   final DateTime lastMessageDate;
   final int unreadCount;
@@ -20,6 +25,7 @@ class MessageThread {
     required this.otherUserId,
     required this.otherUserName,
     this.otherUserAvatar,
+    this.otherUserOnline = false,
     required this.lastMessagePreview,
     required this.lastMessageDate,
     required this.unreadCount,
@@ -43,6 +49,7 @@ class MessageThread {
       otherUserId: otherUserId,
       otherUserName: otherUserName,
       otherUserAvatar: otherUserAvatar,
+      otherUserOnline: otherUserOnline,
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
       lastMessageDate: lastMessageDate ?? this.lastMessageDate,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -94,6 +101,9 @@ class MessageThread {
       otherUserId: otherUserId,
       otherUserName: (otherUser?['name'] ?? 'Unknown').toString(),
       otherUserAvatar: otherUser?['avatar']?.toString(),
+      otherUserOnline: (otherUser?['status'] is Map)
+          ? (otherUser!['status']['slug'] == 'online')
+          : false,
       lastMessagePreview: lastMessage?.message ?? '',
       lastMessageDate: lastMessage?.date ??
           parseBetterMessagesTimestamp(json['lastTime']),

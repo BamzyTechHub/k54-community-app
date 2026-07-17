@@ -90,10 +90,6 @@ class FriendsRepository {
     );
   }
 
-  /// The five write operations below all throw UnimplementedError via
-  /// FriendsApiService - not caught here, so controllers/screens see the
-  /// same clear "not available yet" error and can surface it honestly
-  /// rather than a silent no-op or a fabricated success.
   Future<void> sendFriendRequest(String otherUserId) async {
     final userId = await currentUserId();
     await _api.sendFriendRequest(initiatorId: userId, friendId: otherUserId);
@@ -110,4 +106,14 @@ class FriendsRepository {
 
   Future<void> cancelOutgoingRequest(String friendshipId) =>
       _api.cancelOutgoingRequest(friendshipId);
+
+  Future<void> uploadAvatar({required List<int> fileBytes, required String filename}) async {
+    final userId = await currentUserId();
+    await _api.uploadAvatar(userId: userId, fileBytes: fileBytes, filename: filename);
+  }
+
+  Future<void> deleteAvatar() async {
+    final userId = await currentUserId();
+    await _api.deleteAvatar(userId);
+  }
 }
