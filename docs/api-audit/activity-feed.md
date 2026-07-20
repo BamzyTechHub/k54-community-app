@@ -1,9 +1,46 @@
 # Feature: Activity Feed / Timeline
 
 ## Status
-- **Website:** Partial. Live-update mechanism confirmed (WP Heartbeat, see below). Full `buddyboss/v1/activity` route surface confirmed to exist (14 routes) via the public REST index — no response bodies captured yet, no dedicated Activity Feed HAR exists.
-- **Flutter:** Confirmed in detail by reading the actual current code (`buddyboss_service.dart`, `post_model.dart`, `post_card.dart`, `timeline_page.dart`, `create_post_page.dart`, `home_page.dart`) — see Functional Behavior. **Contains a regression** (see below) contradicting `K54_PROJECT_HANDOFF.md`'s claim that the like-toggle full-reload bug was fixed.
-- **Figma:** Not yet reviewed.
+- **Website:** Partial. Live-update mechanism confirmed (WP Heartbeat, see below). Full `buddyboss/v1/activity` route surface confirmed to exist (14 routes) via the public REST index — no response bodies captured yet, no dedicated Activity Feed HAR exists. **2026-07-19 update:** real authenticated samples of `bp_videos`/`bp_media_ids`/`bp_documents` now captured (scanned 50 live activity items) - see "Attachment shapes - CONFIRMED" below. This section and most of the rest of this doc predate this session's `lib/features/` restructure and several since-fixed bugs (the "regression" described below, the file paths) - treat the Status/Network Behavior sections below as historical unless dated 2026-07-19.
+- **Flutter:** File paths below are stale (`lib/Profile/timeline_page.dart` doesn't exist in the current structure - it's `lib/features/activity/screens/timeline_page.dart`), and the "regression" described below (full-reload on like) was fixed earlier this session (optimistic in-place mutation, no refetch). Not re-verifying the rest of this file's claims line by line right now - flagging the drift so it isn't trusted at face value.
+- **Figma:** Reviewed extensively this session - see commit history for Home/Timeline changes.
+
+## Attachment shapes - CONFIRMED (2026-07-19, real authenticated samples)
+
+Scanned 50 real live activity items via `GET /buddyboss/v1/activity?per_page=50` with a real logged-in JWT. Found real examples of all three attachment fields - not the generic "object" type the schema declares, but genuinely populated real data:
+
+**`bp_media_ids` (photo)** - a single object (not wrapped in an array in any sample seen), key fields:
+```json
+{
+  "id": 34, "attachment_id": 1456, "type": "photo",
+  "attachment_data": {
+    "full": "https://.../2e2a19c3364b6195b99636743e32b814.png",
+    "activity_thumb": "https://.../2e2a19c3364b6195b99636743e32b814.png",
+    "thumb": "https://...png", "media_theatre_popup": "https://...png"
+  }
+}
+```
+Real, direct, hotlinkable image URLs - `attachment_data.full` or `attachment_data.activity_thumb` is exactly what a feed card should display. This is a **separate mechanism from `feature_media`/`bb_activity_post_feature_image`** (the one already parsed) - a distinct photo-gallery attachment path, not currently parsed by `Post.fromBuddyBoss` at all.
+
+**`bp_videos` (video)** - same object shape, but **no direct playable video file URL is exposed anywhere in this response**:
+```json
+{
+  "id": 30, "attachment_id": 1188, "type": "video",
+  "attachment_data": {
+    "meta": {"mime_type": "video/mp4", "length_formatted": "0:35"},
+    "full": "https://.../ea199770....jpg",   // a JPG thumbnail, not the video
+    "thumb": "https://....jpg"
+  },
+  "video_activity_thumb": "https://....jpg",
+  "url": "https://k54global.com/bb-video-preview/Zm9yYmlkZGVuXzExODg=/Zm9yYmlkZGVuXzMw",
+  "download_url": "https://k54global.com/?attachment_id=1188&video_type=video&download_video_file=1&video_file=30"
+}
+```
+Every `attachment_data`/`*_thumb` field is a static JPEG poster frame. **RESOLVED 2026-07-20**: the `url` field (`bb-video-preview/{token}/{token}`) was suspected to be an HTML player page rather than a raw stream - directly tested via an authenticated GET (`Invoke-WebRequest` with the real Bearer token) and it returns `200 OK` with `Content-Type: video/mp4` and real video bytes in the body. **This is a genuine, direct, streamable video URL** - a native Flutter `video_player`/`VideoPlayerController.networkUrl` can play it directly, passing the JWT as an `Authorization` header (the two base64-looking path segments appear to be an obfuscated/signed reference to the attachment id, e.g. `Zm9yYmlkZGVuXzExODg=` decodes to `forbidden_1188` - not a token that needs separate handling, just part of the URL). No WebView fallback needed - inline native video playback is fully buildable now.
+
+**`bp_documents`** - same object shape, `type: "document"`, real fields include `filename`, `extension`, `size` (human string like "413 KB"), `svg_icon` (an inline SVG icon string for the file type), `msg_preview` (an HTML snippet), and `attachment_data.full`/`thumb` (a preview image of the document, not the document file itself - the actual file is fetched via `download_url`).
+
+**Implication for `Post` model / `post_card.dart`:** none of these three fields are parsed today. A post with a photo/video/document attached currently shows nothing for it unless it happens to also be set as the `feature_media` (the two are confirmed separate mechanisms). Real, buildable now for photos and documents (direct URLs exist); video needs the `url` resolution question answered first before promising inline playback.
 
 ## ⚠️ Correction to a prior document
 

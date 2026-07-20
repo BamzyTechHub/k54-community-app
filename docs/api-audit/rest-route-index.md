@@ -93,11 +93,13 @@ GET  /bb-social-login/v1/microsoft/redirect_uri
 ```
 Separate from the Nextend Social Login plugin confirmed active earlier (`nextend-social-login/v1`, 2 routes). Whether these are two independent systems or one bridges into the other is unconfirmed. Relevant to the Auth feature's social-login gap — there may be more than one provider path to reconcile, not just Nextend.
 
-## LMS: LearnPress vs. Tutor LMS — a real, testable lead
+## LMS: LearnPress vs. Tutor LMS — RESOLVED
 
-`learnpress/v1` (29 routes: courses, quiz, users, **token** ×3, lessons, questions, course_category, sections, section-items) vs. `tutor/v1` (14 routes: courses, quizzes, topics, lessons, course-announcement, quiz-question-answer, quiz-attempt-details, author-information, course-rating, course-contents, ecommerce-webhook).
+**Tutor LMS is confirmed as the real, actively-administered LMS.** Confirmed 2026-07-19 via a direct WP admin screenshot: "Tutor LMS" is the active/highlighted admin section, with a real published course "K54 Global Growth Program" (author: Ezekiel, Free, Topic:1/Lesson:2/Quiz:0/Assignment:0) — the exact same course title already used as the app's placeholder/dummy Courses data, confirming this is the real content the app should eventually pull from live. LearnPress (`learnpress/v1`, 29 routes) is installed but shows no evidence of active use in the admin UI — likely bundled/unused, not the real course backend.
 
-**LearnPress has its own dedicated authentication token system** (`token`, `token/register`, `token/validate`) — distinct from the site-wide JWT plugin. If LearnPress turns out to be the one actually used for Courses, the app likely needs a *separate* auth step for it, not an assumption that the existing JWT bearer token works there too — directly testable the same way Better Messages was (a curl call), recommended when Courses is audited. LearnPress's richer, more granular REST surface (course_category, sections, section-items) is a *lead*, not proof, that it's the more REST/headless-oriented of the two — Tutor's flatter surface plus an `ecommerce-webhook` route suggests it may lean more on WooCommerce-style purchase flows. Confirm via an actual Courses-page capture, don't decide from route counts alone.
+This means the Courses feature's remaining blocker is specifically **authenticating against `tutor/v1`** (the endpoint returns `401 rest_forbidden` unauthenticated - see `courses.md`), not a question of which LMS to integrate. LearnPress's own token system (`token`, `token/register`, `token/validate`) is no longer a relevant lead unless Tutor LMS auth turns out to be a dead end.
+
+`learnpress/v1` (29 routes: courses, quiz, users, **token** ×3, lessons, questions, course_category, sections, section-items) vs. `tutor/v1` (14 routes: courses, quizzes, topics, lessons, course-announcement, quiz-question-answer, quiz-attempt-details, author-information, course-rating, course-contents, ecommerce-webhook) — kept here for reference in case that assumption ever needs revisiting.
 
 ## `wpstream/v1` (2 routes) — Live Streaming/VOD
 

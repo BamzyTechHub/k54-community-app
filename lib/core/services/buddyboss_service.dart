@@ -4,9 +4,48 @@ import 'package:k54_mobile/features/activity/models/reaction_type.dart';
 import 'package:k54_mobile/features/activity/models/user_reaction.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/core/services/api_service.dart';
+import 'package:k54_mobile/core/services/auth_service.dart';
 
 class BuddyBossService {
   final ApiService _api = ApiService.instance;
+
+  // Process-lifetime cache, not per-instance - a busy timeline can show
+  // the same author on many posts, and this is the only way to get a
+  // real profession string (see getUserProfession's doc comment) without
+  // re-fetching it for every single post by that author.
+  static final Map<String, String> _professionCache = {};
+
+  /// Real professional-status text for a post's author header (matches
+  /// the Figma post card's "Freelancer, Travel Blogger." subtitle) -
+  /// there's no `profession` field on the activity endpoint at all
+  /// (confirmed live 2026-07-19), which is why Post.profession was
+  /// always empty no matter who posted. The real value lives on the
+  /// author's xprofile field 5 - confirmed against EditProfilePage's own
+  /// form (profile_fields_form.dart), which labels field 5 "Professional
+  /// Status" specifically; field 31 (what ProfileHeader's userTitle
+  /// reads) is a *different* field labeled "Field / Industry" there -
+  /// worth a follow-up check since ProfileHeader may be showing the
+  /// wrong one too, but not changed here since that wasn't reported as
+  /// wrong and isn't this fix's scope. Fetched here per author and
+  /// cached - there's no confirmed bulk "fetch several members' xprofile
+  /// by id" endpoint, so this is a real per-author call, not a fake/
+  /// instant value.
+  Future<String> getUserProfession(String userId) async {
+    final cached = _professionCache[userId];
+    if (cached != null) return cached;
+
+    try {
+      final response = await AuthService().getMember(userId);
+      final profession =
+          (response.data["xprofile"]?["groups"]?["1"]?["fields"]?["5"]?["value"]?["raw"] ?? "").toString();
+      _professionCache[userId] = profession;
+      return profession;
+    } catch (_) {
+      // Doesn't cache failures - a transient error shouldn't permanently
+      // blank this author's profession for the rest of the session.
+      return "";
+    }
+  }
 
   // App-wide config, not per-user data - fetched once and reused, same
   // caching approach as FriendsRepository._cachedUserId.

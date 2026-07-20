@@ -77,13 +77,15 @@ final bool canDelete;
       caption = json["content"];
     }
 
+    // The real field on this endpoint is `user_avatar` (confirmed live
+    // 2026-07-19 via the activity schema: "Avatar URLs for the author of
+    // the activity") - `avatar_urls` doesn't exist here at all, which is
+    // why every post fell back to the initial-letter placeholder no
+    // matter who posted.
     String avatar = "";
-
-    if (json["avatar_urls"] != null) {
-      avatar =
-          json["avatar_urls"]["thumb"] ??
-          json["avatar_urls"]["full"] ??
-          "";
+    final avatarUrls = json["user_avatar"] ?? json["avatar_urls"];
+    if (avatarUrls is Map) {
+      avatar = (avatarUrls["thumb"] ?? avatarUrls["full"] ?? "").toString();
     }
 
     String image = "";

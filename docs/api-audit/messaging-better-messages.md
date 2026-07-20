@@ -259,6 +259,8 @@ Not tested — single account/role only. The confirmed `permissions` object abov
 - Is the friends-only restriction on new-conversation starting real, or was this account's `getFriends` call just for a different UI purpose (e.g. a "quick access" list, not the actual full picker)?
 - Full `upload`/`attachments` endpoint request/response shapes — confirmed to exist, not captured in detail.
 - Typing indicators — still not observed in any capture so far.
+- **Message edit** — checked 2026-07-19: no dedicated route found in the full route index, and `OPTIONS /better-messages/v1/message/{id}` (probing for a base resource behind the confirmed `/message/{id}/forward` sub-action) returns `200 []` - not a real registered route, just the site's catch-all. This means editing a message (if it's possible at all on the live site) isn't discoverable by testing URLs - it would need an actual HAR capture of someone using "edit message" in the real website's messenger UI to see what request it fires. Not fixable by more endpoint probing.
+- **Voice notes & message forwarding — CONFIRMED real** (2026-07-19, route index): `POST /better-messages/v1/thread/{id}/sendVoice` (+ `/thread/new/sendVoice` for a first message), and `POST /better-messages/v1/message/{message_id}/forward`. Neither has a captured request/response body yet, but both are real, existing endpoints ready to build against once that capture happens.
 - Does `callCreate` truly support `type: "video"`, and what does a full call lifecycle (create → ring → answer/miss → end) look like end-to-end?
 - What do the other permission-model fields look like for a non-moderator participant, or in a group thread?
 

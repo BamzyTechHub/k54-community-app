@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/widgets/k54_dialog.dart';
@@ -39,7 +40,13 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // Long-press-to-select/copy wasn't enabled anywhere on the card - the
+    // caption, username, and other text just weren't selectable at all.
+    // SelectionArea is the standard Flutter mechanism for this and
+    // doesn't interfere with the card's existing taps (avatar/username/
+    // like/comment/etc. all keep working exactly as before).
+    return SelectionArea(
+      child: Container(
       margin: const EdgeInsets.symmetric(
         horizontal: 16,
         vertical: 10,
@@ -126,19 +133,12 @@ class PostCard extends StatelessWidget {
       Row(
         children: [
 
-          if (post.profession.isNotEmpty)
-
-            Flexible(
-              child: Text(
-                post.profession,
-                overflow: TextOverflow.ellipsis,
-                // Poppins 12/400 #515050 - same Figma frame as above.
-                style: GoogleFonts.poppins(
-                  color: const Color(0xFF515050),
-                  fontSize: 12,
-                ),
-              ),
-            ),
+          // post.profession is never populated (no such field exists on
+          // the activity endpoint - see BuddyBossService.getUserProfession's
+          // doc comment) - this fetches the author's real xprofile
+          // profession instead, cached per author so a busy feed doesn't
+          // re-fetch it for every post by the same person.
+          _AuthorProfession(userId: post.userId),
 
           const SizedBox(width: 6),
 
@@ -167,160 +167,11 @@ class PostCard extends StatelessWidget {
   ),
 ),
 
-PopupMenuButton<String>(
-  icon: const Icon(Icons.more_horiz),
-  onSelected: (value) async {
-    switch (value) {
-      case "edit":
-        final updated = await Navigator.push<Post>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CreatePostPage(editingPost: post),
-          ),
-        );
-        if (updated != null) {
-          onPostUpdated?.call(updated);
-        }
-        break;
-
-      case "delete":
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            shape: K54Dialog.shape,
-            title: const Text("Delete post"),
-            content: const Text(
-              "This can't be undone. Delete this post?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text(
-                  "Delete",
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true) break;
-
-        try {
-          await BuddyBossService().deletePost(post.id);
-          onPostDeleted?.call();
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Couldn't delete post: $e")),
-            );
-          }
-        }
-        break;
-
-      case "pin":
-      case "unpin":
-        try {
-          final updated =
-              await BuddyBossService().togglePin(int.parse(post.id));
-          post.isPinned = updated.isPinned;
-          onPostChanged?.call();
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Couldn't update pin: $e")),
-            );
-          }
-        }
-        break;
-
-      case "close_comments":
-      case "open_comments":
-        final closing = value == "close_comments";
-        final previous = post.commentsClosed;
-        post.commentsClosed = closing;
-        onPostChanged?.call();
-        try {
-          await BuddyBossService().toggleCommentsClosed(post.id, closing);
-        } catch (e) {
-          post.commentsClosed = previous;
-          onPostChanged?.call();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Couldn't update comments: $e")),
-            );
-          }
-        }
-        break;
-
-      case "report":
-        showDialog<void>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            shape: K54Dialog.shape,
-            title: const Text("Report post"),
-            content: const Text(
-              "Are you sure you want to report this post?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Post reported"),
-                    ),
-                  );
-                },
-                child: const Text("Report"),
-              ),
-            ],
-          ),
-        );
-        break;
-    }
-  },
-  itemBuilder: (_) {
-    if (post.canEdit) {
-      return [
-        const PopupMenuItem(
-          value: "edit",
-          child: Text("Edit"),
-        ),
-        const PopupMenuItem(
-          value: "delete",
-          child: Text("Delete"),
-        ),
-        // No confirmed permission field exists for pinning specifically
-        // (only can_edit/can_delete/can_comment are), so this reuses the
-        // same owner-level gate as edit/delete rather than a dedicated one.
-        PopupMenuItem(
-          value: post.isPinned ? "unpin" : "pin",
-          child: Text(post.isPinned ? "Unpin" : "Pin to top"),
-        ),
-        PopupMenuItem(
-          value: post.commentsClosed ? "open_comments" : "close_comments",
-          child: Text(
-            post.commentsClosed ? "Open Comments" : "Close Comments",
-          ),
-        ),
-      ];
-    }
-
-    return const [
-      PopupMenuItem(
-        value: "report",
-        child: Text("Report"),
-      ),
-    ];
-  },
+_PostMenuButton(
+  post: post,
+  onPostChanged: onPostChanged,
+  onPostUpdated: onPostUpdated,
+  onPostDeleted: onPostDeleted,
 ),
               ],
             ),
@@ -335,6 +186,16 @@ PopupMenuButton<String>(
 
             Html(
   data: post.caption,
+  // Was completely unwired - a link in a post's text did nothing at
+  // all when tapped. Opens externally rather than an in-app WebView,
+  // matching how every other outbound link in this app already
+  // behaves (Members/Groups profile links, Help Center's Terms/
+  // Privacy links).
+  onLinkTap: (url, attributes, element) {
+    if (url != null) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  },
   style: {
     // Poppins 14/400 #1A1A1A - re-verified directly against the raw
     // node 571:714 JSON on 2026-07-16 (not from memory): the body text
@@ -353,6 +214,10 @@ PopupMenuButton<String>(
     ),
     "p": Style(
       margin: Margins.only(bottom: 10),
+    ),
+    "a": Style(
+      color: AppColors.green,
+      textDecoration: TextDecoration.underline,
     ),
   },
 ),
@@ -385,6 +250,11 @@ if (post.previewData.isNotEmpty)
     padding: const EdgeInsets.only(top: 12),
     child: Html(
       data: post.previewData,
+      onLinkTap: (url, attributes, element) {
+        if (url != null) {
+          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        }
+      },
     ),
   ),
 
@@ -485,6 +355,239 @@ if (post.previewData.isNotEmpty)
   ],
 ),
           ],
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+/// The post card's "..." menu - was a plain PopupMenuButton, which renders
+/// in Flutter's stock Material purple since this app never sets a brand
+/// ColorScheme/theme (flagged directly by the user - "not that purple").
+/// Rebuilt with the same custom-overlay pattern already used for the
+/// profile menu, filter popovers, and reaction picker: a plain white/
+/// cream rounded card with the app's own colors, not a themed default
+/// widget. Same menu items as before (Edit/Delete/Pin/Close-Comments for
+/// the post's owner, Report for everyone else) - only the visual
+/// treatment changed here, not the content (that's a separate,
+/// deliberately deferred task pending a screenshot of the live site's
+/// own menu).
+class _PostMenuButton extends StatefulWidget {
+  final Post post;
+  final VoidCallback? onPostChanged;
+  final ValueChanged<Post>? onPostUpdated;
+  final VoidCallback? onPostDeleted;
+
+  const _PostMenuButton({
+    required this.post,
+    this.onPostChanged,
+    this.onPostUpdated,
+    this.onPostDeleted,
+  });
+
+  @override
+  State<_PostMenuButton> createState() => _PostMenuButtonState();
+}
+
+class _PostMenuButtonState extends State<_PostMenuButton> {
+  final LayerLink _layerLink = LayerLink();
+
+  void _openMenu() {
+    final post = widget.post;
+    final items = post.canEdit
+        ? [
+            (value: "edit", label: "Edit", destructive: false),
+            (value: "delete", label: "Delete", destructive: true),
+            // No confirmed permission field exists for pinning
+            // specifically (only can_edit/can_delete/can_comment are),
+            // so this reuses the same owner-level gate as edit/delete
+            // rather than a dedicated one.
+            (value: post.isPinned ? "unpin" : "pin", label: post.isPinned ? "Unpin" : "Pin to top", destructive: false),
+            (
+              value: post.commentsClosed ? "open_comments" : "close_comments",
+              label: post.commentsClosed ? "Open Comments" : "Close Comments",
+              destructive: false,
+            ),
+          ]
+        : [(value: "report", label: "Report", destructive: false)];
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (overlayContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => entry.remove(),
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomRight,
+            followerAnchor: Alignment.topRight,
+            offset: const Offset(0, 4),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              elevation: 6,
+              shadowColor: Colors.black.withValues(alpha: 0.2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: items
+                      .map((item) => TapScale(
+                            onTap: () {
+                              entry.remove();
+                              _handleAction(item.value);
+                            },
+                            child: Container(
+                              width: 190,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Text(
+                                item.label,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: item.destructive ? Colors.red : AppColors.jetBlack,
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    overlay.insert(entry);
+  }
+
+  Future<void> _handleAction(String value) async {
+    final post = widget.post;
+    switch (value) {
+      case "edit":
+        final updated = await Navigator.push<Post>(
+          context,
+          MaterialPageRoute(builder: (_) => CreatePostPage(editingPost: post)),
+        );
+        if (updated != null) {
+          widget.onPostUpdated?.call(updated);
+        }
+        break;
+
+      case "delete":
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            shape: K54Dialog.shape,
+            title: const Text("Delete post"),
+            content: const Text("This can't be undone. Delete this post?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text("Delete", style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) break;
+
+        try {
+          await BuddyBossService().deletePost(post.id);
+          widget.onPostDeleted?.call();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't delete post: $e")),
+            );
+          }
+        }
+        break;
+
+      case "pin":
+      case "unpin":
+        try {
+          final updated = await BuddyBossService().togglePin(int.parse(post.id));
+          post.isPinned = updated.isPinned;
+          widget.onPostChanged?.call();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't update pin: $e")),
+            );
+          }
+        }
+        break;
+
+      case "close_comments":
+      case "open_comments":
+        final closing = value == "close_comments";
+        final previous = post.commentsClosed;
+        post.commentsClosed = closing;
+        widget.onPostChanged?.call();
+        try {
+          await BuddyBossService().toggleCommentsClosed(post.id, closing);
+        } catch (e) {
+          post.commentsClosed = previous;
+          widget.onPostChanged?.call();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't update comments: $e")),
+            );
+          }
+        }
+        break;
+
+      case "report":
+        showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            shape: K54Dialog.shape,
+            title: const Text("Report post"),
+            content: const Text("Are you sure you want to report this post?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Post reported")),
+                  );
+                },
+                child: const Text("Report"),
+              ),
+            ],
+          ),
+        );
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: TapScale(
+        onTap: _openMenu,
+        borderRadius: BorderRadius.circular(20),
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(Icons.more_horiz, color: AppColors.jetBlack),
         ),
       ),
     );
@@ -689,6 +792,39 @@ class _AnimatedCount extends StatelessWidget {
           color: AppColors.jetBlack,
         ),
       ),
+    );
+  }
+}
+
+/// Fetches and shows a post author's real professional-status text (e.g.
+/// "Freelancer, Travel Blogger.") - see BuddyBossService.getUserProfession's
+/// doc comment for why this can't just read post.profession directly.
+/// Renders nothing while loading or if the author has no profession set,
+/// rather than a loading spinner in the middle of the header row.
+class _AuthorProfession extends StatelessWidget {
+  final String userId;
+
+  const _AuthorProfession({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId.isEmpty) return const SizedBox.shrink();
+
+    return FutureBuilder<String>(
+      future: BuddyBossService().getUserProfession(userId),
+      builder: (context, snapshot) {
+        final profession = snapshot.data ?? "";
+        if (profession.isEmpty) return const SizedBox.shrink();
+        return Flexible(
+          child: Text(
+            profession,
+            overflow: TextOverflow.ellipsis,
+            // Poppins 12/400 #515050 - same Figma frame as the username
+            // above it.
+            style: GoogleFonts.poppins(color: const Color(0xFF515050), fontSize: 12),
+          ),
+        );
+      },
     );
   }
 }
