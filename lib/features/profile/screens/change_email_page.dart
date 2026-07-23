@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
@@ -94,7 +94,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+          Text(label, style: const TextStyle(fontSize: 13, color: AppColors.black87)),
           const SizedBox(height: 6),
           TextField(
             controller: controller,
@@ -118,7 +118,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),

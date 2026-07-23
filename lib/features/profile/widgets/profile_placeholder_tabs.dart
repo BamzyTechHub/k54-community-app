@@ -1,10 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/features/courses/models/course_model.dart';
+import 'package:k54_mobile/features/courses/repositories/courses_repository.dart';
 
 /// Empty states below match the live site's own profile tabs exactly
 /// (fetched directly from k54global.com/members/{user}/documents|quizzes|
@@ -203,7 +207,7 @@ class ProfileOrdersTab extends StatelessWidget {
           Text(
             "If you have a valid order key, you can recover it here.",
             textAlign: TextAlign.center,
-            style: GoogleFonts.lato(fontSize: 13, color: Colors.grey.shade700),
+            style: GoogleFonts.lato(fontSize: 13, color: AppColors.greyShade700),
           ),
           const SizedBox(height: 14),
           OutlinedButton(
@@ -221,8 +225,25 @@ class ProfileOrdersTab extends StatelessWidget {
 
 /// Courses tab: "Enrolled Courses" / "Created Courses" sub-tabs, matching
 /// the live site exactly.
+///
+/// "Created Courses" is real now (2026-07-21) - `GET /wp/v2/courses?
+/// author={id}` is standard WordPress core REST behavior for any public
+/// post type, confirmed live against this exact endpoint (course 791
+/// "K54 Global Growth Program", author 5, correctly returned only for
+/// `?author=5`). [userId] is the profile being viewed; null means "my
+/// own profile," matching ProfilePage's own null-means-me convention -
+/// this tab resolves the real current-user id itself in that case rather
+/// than requiring every caller to pre-resolve it.
+///
+/// "Enrolled Courses" stays the honest empty state - Tutor LMS's
+/// enrollment data lives entirely behind the confirmed `tutor/v1`
+/// capability wall (403 for every sub-resource regardless of
+/// enrollment - see docs/api-audit/courses.md), so there's no real data
+/// source for this tab to show yet.
 class ProfileCoursesTab extends StatefulWidget {
-  const ProfileCoursesTab({super.key});
+  final String? userId;
+
+  const ProfileCoursesTab({super.key, this.userId});
 
   @override
   State<ProfileCoursesTab> createState() => _ProfileCoursesTabState();
@@ -230,6 +251,41 @@ class ProfileCoursesTab extends StatefulWidget {
 
 class _ProfileCoursesTabState extends State<ProfileCoursesTab> {
   int _subTab = 0;
+
+  List<Course>? _createdCourses;
+  bool _loading = true;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCreatedCourses();
+  }
+
+  Future<void> _loadCreatedCourses() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final userId = widget.userId ?? (await AuthService().getCurrentUser()).data["id"]?.toString();
+      if (userId == null || userId.isEmpty) {
+        throw StateError("Couldn't resolve this profile's user id");
+      }
+      final result = await CoursesRepository.instance.getCourses(authorId: userId, perPage: 50);
+      if (!mounted) return;
+      setState(() {
+        _createdCourses = result.courses;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +303,7 @@ class _ProfileCoursesTabState extends State<ProfileCoursesTab> {
                   padding: const EdgeInsets.only(bottom: 6),
                   decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: selected ? AppColors.green : Colors.transparent, width: 2),
+                      bottom: BorderSide(color: selected ? AppColors.green : AppColors.transparent, width: 2),
                     ),
                   ),
                   child: Text(
@@ -260,13 +316,69 @@ class _ProfileCoursesTabState extends State<ProfileCoursesTab> {
           }),
         ),
         const SizedBox(height: 16),
-        ProfileEmptyTab(
-          icon: Icons.school_outlined,
-          message: _subTab == 0
-              ? "This member has not enrolled in any courses yet!"
-              : "This member has not created any courses yet!",
-        ),
+        if (_subTab == 0)
+          const ProfileEmptyTab(
+            icon: Icons.school_outlined,
+            message: "This member has not enrolled in any courses yet!",
+          )
+        else
+          _buildCreatedCourses(),
       ],
+    );
+  }
+
+  Widget _buildCreatedCourses() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: CircularProgressIndicator(color: AppColors.green),
+      );
+    }
+    if (_error != null) {
+      return ProfileEmptyTab(
+        icon: Icons.error_outline,
+        message: "Couldn't load created courses.\n$_error",
+        extra: TextButton(onPressed: _loadCreatedCourses, child: const Text("Retry")),
+      );
+    }
+    final courses = _createdCourses ?? [];
+    if (courses.isEmpty) {
+      return const ProfileEmptyTab(
+        icon: Icons.school_outlined,
+        message: "This member has not created any courses yet!",
+      );
+    }
+
+    return Column(
+      children: courses
+          .map((course) => TapScale(
+                onTap: course.link.isEmpty
+                    ? null
+                    : () => launchUrl(Uri.parse(course.link), mode: LaunchMode.externalApplication),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5EFD9),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.school_outlined, color: AppColors.green),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          course.title,
+                          style: GoogleFonts.lato(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.jetBlack),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: AppColors.groupMutedText),
+                    ],
+                  ),
+                ),
+              ))
+          .toList(),
     );
   }
 }

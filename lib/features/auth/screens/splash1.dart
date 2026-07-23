@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
@@ -68,7 +69,7 @@ class _Splash1State extends State<Splash1> {
   Widget build(BuildContext context) {
     if (_checking) {
       return const Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         body: SizedBox.shrink(),
       );
     }
@@ -82,11 +83,11 @@ class _Splash1State extends State<Splash1> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFCF8ED), Colors.white],
+          colors: [Color(0xFFFCF8ED), AppColors.white],
         ),
       ),
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.transparent,
 
         body: Stack(
           children: [
@@ -120,8 +121,10 @@ class _Splash1State extends State<Splash1> {
   style: TextStyle(
     fontSize: 20,
     fontStyle: FontStyle.italic,
-    fontWeight: FontWeight.w600,
-    color: Colors.black,
+    // Was w600 - noticeably heavier than the other onboarding screens'
+    // subtext (w400), direct tester feedback.
+    fontWeight: FontWeight.w400,
+    color: AppColors.black,
     height: 1.3,
   ),
 ),

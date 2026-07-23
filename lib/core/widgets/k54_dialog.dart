@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// Consistent rounded-corner shape for every dialog in the app -
 /// previously only Help Center's contact-sheet dialog had a custom
@@ -43,7 +44,7 @@ Future<T?> showK54BottomSheet<T>({
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
-    backgroundColor: Colors.white,
+    backgroundColor: AppColors.white,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
     ),

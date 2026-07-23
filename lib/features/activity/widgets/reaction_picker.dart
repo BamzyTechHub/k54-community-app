@@ -1,13 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 import 'package:k54_mobile/features/activity/models/reaction_type.dart';
-
-Color _parseHexColor(String hex, {Color fallback = Colors.black}) {
-  final cleaned = hex.replaceAll('#', '').trim();
-  if (cleaned.length != 6) return fallback;
-  final value = int.tryParse('FF$cleaned', radix: 16);
-  return value != null ? Color(value) : fallback;
-}
 
 /// Renders one reaction's glyph - the plain "Like" entry has no remote
 /// icon_path (rendered as a colored thumbs-up), the other five are real
@@ -22,11 +16,12 @@ class ReactionGlyph extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (type.isPlainLike) {
-      return Icon(
-        Icons.thumb_up,
-        size: size,
-        color: _parseHexColor(type.iconColor, fallback: Colors.blue),
-      );
+      // BuddyBoss's own default `icon_color` for the plain Like reaction is
+      // a Facebook-style blue - confirmed real (reported live: the like
+      // button turned blue once real reaction types loaded, overriding the
+      // green fallback used before that). Brand green always wins here
+      // instead of trusting the backend's own color for this one glyph.
+      return Icon(Icons.thumb_up, size: size, color: AppColors.green);
     }
     return Image.network(
       type.iconPath,
@@ -70,15 +65,15 @@ void showReactionPicker({
           followerAnchor: Alignment.bottomLeft,
           offset: const Offset(-8, -12),
           child: Material(
-            color: Colors.transparent,
+            color: AppColors.transparent,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.white,
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
+                    color: AppColors.black.withValues(alpha: 0.15),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),

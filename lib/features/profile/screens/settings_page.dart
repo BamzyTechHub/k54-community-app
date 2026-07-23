@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
@@ -230,7 +230,7 @@ class _SettingsPageState extends State<SettingsPage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.green))
@@ -283,7 +283,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 40),
                         child: Center(
-                          child: Text("No settings match \"${_searchController.text}\"", style: GoogleFonts.lato(color: Colors.grey.shade600)),
+                          child: Text("No settings match \"${_searchController.text}\"", style: GoogleFonts.lato(color: AppColors.greyShade600)),
                         ),
                       )
                     else

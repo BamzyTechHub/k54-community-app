@@ -1,5 +1,6 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/core/widgets/social_button.dart';
@@ -35,6 +36,12 @@ class _LoginState extends State<Login> {
 
       final AuthService authService =
     AuthService();
+  // Same secure storage already used for the auth token (ApiService) -
+  // a password is sensitive enough that it belongs here, not in plain
+  // SharedPreferences (which "Remember me" previously used for email
+  // only - it never actually remembered the password at all, direct
+  // tester feedback: "it should remember both the email and password").
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   bool rememberMe = false;
   bool hidePassword = true;
   bool _loggingIn = false;
@@ -68,6 +75,9 @@ Future<void> loadRememberMe() async {
     emailController.text =
         prefs.getString("email") ?? "";
 
+    passwordController.text =
+        await _secureStorage.read(key: "rememberedPassword") ?? "";
+
   }
 
   setState(() {});
@@ -97,9 +107,11 @@ Future<void> _login() async {
       if (rememberMe) {
         await prefs.setBool("rememberMe", true);
         await prefs.setString("email", emailController.text.trim());
+        await _secureStorage.write(key: "rememberedPassword", value: passwordController.text);
       } else {
         await prefs.remove("rememberMe");
         await prefs.remove("email");
+        await _secureStorage.delete(key: "rememberedPassword");
       }
 
       if (!mounted) return;
@@ -147,7 +159,7 @@ String _describeLoginError(Object e) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -324,12 +336,12 @@ const SizedBox(height: 10),
                         height: 26,
                         margin: const EdgeInsets.only(right: 12),
                         decoration: BoxDecoration(
-                          color: rememberMe ? const Color(0xFF008000) : Colors.transparent,
+                          color: rememberMe ? const Color(0xFF008000) : AppColors.transparent,
                           border: Border.all(color: AppColors.border),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: rememberMe
-                            ? const Icon(Icons.check, size: 18, color: Colors.white)
+                            ? const Icon(Icons.check, size: 18, color: AppColors.white)
                             : null,
                       ),
                     ),

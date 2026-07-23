@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// Shared controller/state bundle for the xprofile fields that both
@@ -8,24 +9,33 @@ import 'package:k54_mobile/core/theme/app_colors.dart';
 /// editing, from the profile menu) used to duplicate as two separate
 /// hand-built forms. All of these map to confirmed xprofile field IDs
 /// (Field/Industry=31, Professional Status=5, Date of Birth=4, Gender=18,
-/// Bio=17) but only Bio has a confirmed write payload shape - the rest
-/// are shown/editable and validated, not silently dropped, per the
-/// project's "build the UI, don't guess the write format" rule.
+/// Bio=17, Social Media=13) - every field's real write shape is now
+/// confirmed (2026-07-20, live test-and-revert against this app's own
+/// test account - see BuddyBossService's doc comments for each), so
+/// Save actually persists all of them now, not just Bio.
 ///
-/// Field/Professional Status/Gender are plain text here rather than the
-/// constrained dropdowns ProfileSetup used to guess at (e.g. "Beginner/
-/// Intermediate/Advanced/Expert") - those option lists were never
-/// confirmed against BuddyBoss's real allowed values, so a fixed dropdown
-/// risked excluding a real value. Date of Birth uses a real date picker
-/// (an unambiguous UX improvement over a freeform text field regardless
-/// of write-format confirmation status).
+/// Field/Industry and Professional Status are real `selectbox` fields
+/// (not freeform text) - their exact option lists are fetched live rather
+/// than hardcoded, so this always matches whatever the site admin has
+/// configured. Gender is a `gender`-type field whose options carry a
+/// separate pronoun-prefixed write value (e.g. "Male" displays, but
+/// "his_Male" is what must be saved - sending the plain name fails with a
+/// real 500). Social Media only has Facebook + LinkedIn configured on
+/// this site (confirmed via the field's own live `options` list) - no
+/// Instagram option exists, so that field was removed rather than kept
+/// as a guess that silently wouldn't save anywhere real.
 class ProfileFieldsData {
-  final fieldController = TextEditingController();
-  final professionalStatusController = TextEditingController();
-  final genderController = TextEditingController();
+  /// Selected option's *display name* for Field/Industry and Professional
+  /// Status (selectbox fields - name IS the save value for these).
+  String? fieldValue;
+  String? professionalStatusValue;
+
+  /// Selected option's *write* value for Gender (e.g. "his_Male") - kept
+  /// separate from the display name shown in the dropdown.
+  String? genderValue;
+
   final bioController = TextEditingController();
   final facebookController = TextEditingController();
-  final instagramController = TextEditingController();
   final linkedinController = TextEditingController();
   DateTime? dateOfBirth;
 
@@ -34,12 +44,8 @@ class ProfileFieldsData {
       : "${dateOfBirth!.day}/${dateOfBirth!.month}/${dateOfBirth!.year}";
 
   void dispose() {
-    fieldController.dispose();
-    professionalStatusController.dispose();
-    genderController.dispose();
     bioController.dispose();
     facebookController.dispose();
-    instagramController.dispose();
     linkedinController.dispose();
   }
 }
@@ -55,6 +61,42 @@ class ProfileFieldsForm extends StatefulWidget {
 }
 
 class _ProfileFieldsFormState extends State<ProfileFieldsForm> {
+  static const _fieldIndustryId = 31;
+  static const _professionalStatusId = 5;
+  static const _genderId = 18;
+
+  final BuddyBossService _service = BuddyBossService();
+
+  List<XProfileFieldOption>? _fieldIndustryOptions;
+  List<XProfileFieldOption>? _professionalStatusOptions;
+  List<XProfileFieldOption>? _genderOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final results = await Future.wait([
+        _service.getFieldOptions(_fieldIndustryId),
+        _service.getFieldOptions(_professionalStatusId),
+        _service.getFieldOptions(_genderId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _fieldIndustryOptions = results[0];
+        _professionalStatusOptions = results[1];
+        _genderOptions = results[2];
+      });
+    } catch (_) {
+      // Options failed to load - the dropdowns below just show a loading
+      // state indefinitely rather than a broken/empty picker; the rest of
+      // the form (bio/dob/social) still works independently.
+    }
+  }
+
   Widget _field({
     required String label,
     required TextEditingController controller,
@@ -70,13 +112,56 @@ class _ProfileFieldsFormState extends State<ProfileFieldsForm> {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: AppColors.green) : null,
-          labelStyle: GoogleFonts.lato(color: Colors.grey.shade600),
+          labelStyle: GoogleFonts.lato(color: AppColors.greyShade600),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: AppColors.greyShade300),
           ),
         ),
+      ),
+    );
+  }
+
+  /// [selected] is the display name currently chosen; [onSelected] is
+  /// called with the option's own [XProfileFieldOption] (so the caller can
+  /// store either .name or .value depending on the field).
+  Widget _dropdown({
+    required String label,
+    required List<XProfileFieldOption>? options,
+    required String? selected,
+    required ValueChanged<XProfileFieldOption> onSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        // `initialValue` only applies on this FormField's first build -
+        // options (and the existing saved value they let us resolve) load
+        // asynchronously after this widget's first frame, so without a key
+        // that changes once real data arrives, a pre-existing selection
+        // would never visually populate. Forces a fresh FormField state
+        // once options go from null -> loaded.
+        key: ValueKey("$label-${options != null}"),
+        initialValue: options != null && options.any((o) => o.name == selected) ? selected : null,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.lato(color: AppColors.greyShade600),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: AppColors.greyShade300),
+          ),
+        ),
+        hint: options == null ? const Text("Loading...") : Text("Select $label"),
+        items: (options ?? [])
+            .map((o) => DropdownMenuItem(value: o.name, child: Text(o.name)))
+            .toList(),
+        onChanged: options == null
+            ? null
+            : (value) {
+                final option = options.firstWhere((o) => o.name == value);
+                onSelected(option);
+              },
       ),
     );
   }
@@ -97,8 +182,18 @@ class _ProfileFieldsFormState extends State<ProfileFieldsForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _field(label: "Field / Industry", controller: data.fieldController),
-        _field(label: "Professional Status", controller: data.professionalStatusController),
+        _dropdown(
+          label: "Field / Industry",
+          options: _fieldIndustryOptions,
+          selected: data.fieldValue,
+          onSelected: (option) => setState(() => data.fieldValue = option.name),
+        ),
+        _dropdown(
+          label: "Professional Status",
+          options: _professionalStatusOptions,
+          selected: data.professionalStatusValue,
+          onSelected: (option) => setState(() => data.professionalStatusValue = option.name),
+        ),
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: GestureDetector(
@@ -107,24 +202,34 @@ class _ProfileFieldsFormState extends State<ProfileFieldsForm> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: AppColors.greyShade300),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Text(
                 data.dateOfBirth == null ? "Date of Birth" : data.dobDisplay,
                 style: GoogleFonts.lato(
                   fontSize: 15,
-                  color: data.dateOfBirth == null ? Colors.grey.shade600 : AppColors.jetBlack,
+                  color: data.dateOfBirth == null ? AppColors.greyShade600 : AppColors.jetBlack,
                 ),
               ),
             ),
           ),
         ),
-        _field(label: "Gender", controller: data.genderController),
+        _dropdown(
+          label: "Gender",
+          options: _genderOptions,
+          // The dropdown itself always displays/selects by name - genderValue
+          // (the pronoun-prefixed write value) is looked up from the matching
+          // option, not shown directly.
+          selected: _genderOptions?.firstWhere(
+            (o) => o.value == data.genderValue,
+            orElse: () => const XProfileFieldOption(name: "", value: ""),
+          ).name,
+          onSelected: (option) => setState(() => data.genderValue = option.value),
+        ),
         _field(label: "Bio", controller: data.bioController, maxLines: 3),
         if (widget.showSocialLinks) ...[
           _field(label: "Facebook", controller: data.facebookController, prefixIcon: Icons.facebook),
-          _field(label: "Instagram", controller: data.instagramController, prefixIcon: Icons.camera_alt_outlined),
           _field(label: "LinkedIn", controller: data.linkedinController, prefixIcon: Icons.business),
         ],
       ],

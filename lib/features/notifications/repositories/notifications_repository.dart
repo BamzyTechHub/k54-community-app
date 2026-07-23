@@ -18,18 +18,39 @@ class NotificationsRepository {
     unreadCount.value = _cached.where((n) => n.isNew).length;
   }
 
+  /// Confirmed live 2026-07-23: the real `is_new` arg on this endpoint
+  /// defaults to `true`, meaning a plain fetch with no explicit `is_new`
+  /// silently returns ONLY unread notifications - the entire read history
+  /// (including anything the site's own UI already auto-marked read, e.g.
+  /// visiting the Friends/Requests page) was invisible in the app. Real
+  /// evidence: a genuine incoming friend-request notification existed
+  /// server-side (confirmed via a direct API check) but never appeared in
+  /// the app because BuddyBoss had already flipped its `is_new` to 0.
+  /// Fetches both states and merges them, newest first, so the list shows
+  /// full history like the site does - unread ones are still visually
+  /// distinguished via AppNotification.isNew.
   Future<List<AppNotification>> getNotifications({int page = 1, int perPage = 20}) async {
-    final response = await _api.getNotifications(page: page, perPage: perPage);
-    final List raw = response.data is List ? response.data : const [];
-    final result = raw
-        .whereType<Map>()
-        .map((n) => AppNotification.fromBuddyBoss(Map<String, dynamic>.from(n)))
-        .toList();
+    final results = await Future.wait([
+      _api.getNotifications(page: page, perPage: perPage, isNew: true),
+      _api.getNotifications(page: page, perPage: perPage, isNew: false),
+    ]);
+
+    List<AppNotification> parse(dynamic data) {
+      final List raw = data is List ? data : const [];
+      return raw
+          .whereType<Map>()
+          .map((n) => AppNotification.fromBuddyBoss(Map<String, dynamic>.from(n)))
+          .toList();
+    }
+
+    final merged = [...parse(results[0].data), ...parse(results[1].data)];
+    merged.sort((a, b) => b.date.compareTo(a.date));
+
     if (page == 1) {
-      _cached = result;
+      _cached = merged;
       _recalculateUnread();
     }
-    return result;
+    return merged;
   }
 
   Future<void> markRead(String id) async {

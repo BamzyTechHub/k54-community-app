@@ -19,6 +19,7 @@ class MessageThread {
   final List<ChatMessage> messages;
   final bool isPinned;
   final bool isMuted;
+  final int participantCount;
 
   MessageThread({
     required this.id,
@@ -32,7 +33,17 @@ class MessageThread {
     this.messages = const [],
     this.isPinned = false,
     this.isMuted = false,
+    this.participantCount = 2,
   });
+
+  /// True for a group's own multi-participant thread (e.g. the one behind
+  /// a group's real "Messages" tab - confirmed live 2026-07-22, `type:
+  /// "group"` on the thread object) rather than a 1-on-1 conversation.
+  /// `otherUserName`/`otherUserAvatar` are repurposed to hold the group's
+  /// own `title`/`image` in this case (see fromBetterMessages) rather
+  /// than a single other person's - deliberately, so ChatPage's existing
+  /// header rendering needs no changes to display either kind correctly.
+  bool get isGroupThread => participantCount > 2;
 
   bool get isUnread => unreadCount > 0;
 
@@ -56,6 +67,7 @@ class MessageThread {
       messages: messages ?? this.messages,
       isPinned: isPinned ?? this.isPinned,
       isMuted: isMuted ?? this.isMuted,
+      participantCount: participantCount,
     );
   }
 
@@ -71,17 +83,22 @@ class MessageThread {
     required List<Map<String, dynamic>> threadMessages,
   }) {
     final participants = (json['participants'] as List?) ?? [];
-    String? otherUserId;
-    for (final p in participants) {
-      final pid = p.toString();
-      if (pid != currentUserId) {
-        otherUserId = pid;
-        break;
-      }
-    }
-    otherUserId ??= participants.isNotEmpty ? participants.first.toString() : '';
+    final isGroup = json['type'] == 'group';
 
-    final otherUser = usersById[otherUserId];
+    String otherUserId = '';
+    Map<String, dynamic>? otherUser;
+    if (!isGroup) {
+      String? found;
+      for (final p in participants) {
+        final pid = p.toString();
+        if (pid != currentUserId) {
+          found = pid;
+          break;
+        }
+      }
+      otherUserId = found ?? (participants.isNotEmpty ? participants.first.toString() : '');
+      otherUser = usersById[otherUserId];
+    }
 
     final sortedMessages = [...threadMessages]
       ..sort((a, b) => (a['created_at'] as num? ?? 0).compareTo(b['created_at'] as num? ?? 0));
@@ -99,11 +116,16 @@ class MessageThread {
     return MessageThread(
       id: (json['thread_id'] ?? json['id'] ?? '').toString(),
       otherUserId: otherUserId,
-      otherUserName: (otherUser?['name'] ?? 'Unknown').toString(),
-      otherUserAvatar: otherUser?['avatar']?.toString(),
-      otherUserOnline: (otherUser?['status'] is Map)
-          ? (otherUser!['status']['slug'] == 'online')
-          : false,
+      // Group threads: real group name/avatar from the thread itself
+      // (confirmed live 2026-07-22 - `title`/`subject` + `image` on a
+      // real `type: "group"` thread), not one arbitrarily-picked
+      // participant.
+      otherUserName: isGroup
+          ? (json['title'] ?? json['subject'] ?? 'Group').toString()
+          : (otherUser?['name'] ?? 'Unknown').toString(),
+      otherUserAvatar: isGroup ? json['image']?.toString() : otherUser?['avatar']?.toString(),
+      otherUserOnline: !isGroup && (otherUser?['status'] is Map) && (otherUser!['status']['slug'] == 'online'),
+      participantCount: int.tryParse('${json['participantsCount'] ?? participants.length}') ?? participants.length,
       lastMessagePreview: lastMessage?.message ?? '',
       lastMessageDate: lastMessage?.date ??
           parseBetterMessagesTimestamp(json['lastTime']),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -104,15 +104,15 @@ class _DeactivateAccountPageState extends State<DeactivateAccountPage> {
             Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_off,
               size: 20,
-              color: selected ? AppColors.green : Colors.grey,
+              color: selected ? AppColors.green : AppColors.grey,
             ),
             const SizedBox(width: 12),
             Text(label, style: GoogleFonts.lato(fontSize: 15, color: AppColors.jetBlack)),
             if (warning) ...[
               const SizedBox(width: 6),
-              const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+              const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.warning),
               const SizedBox(width: 4),
-              Text("irreversible", style: GoogleFonts.lato(fontSize: 12, color: Colors.orange.shade800)),
+              Text("irreversible", style: GoogleFonts.lato(fontSize: 12, color: AppColors.warningDark)),
             ],
           ],
         ),
@@ -157,7 +157,7 @@ class _DeactivateAccountPageState extends State<DeactivateAccountPage> {
     final isDelete = _action == _AccountAction.delete;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -223,18 +223,18 @@ class _DeactivateAccountPageState extends State<DeactivateAccountPage> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFCF8ED),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red.shade200),
+                    border: Border.all(color: AppColors.errorLight),
                   ),
                   child: Text.rich(
                     TextSpan(
                       children: [
                         TextSpan(
                           text: "WARNING: Deleting your account is irreversible.\n",
-                          style: GoogleFonts.lato(fontWeight: FontWeight.w700, color: Colors.red.shade700),
+                          style: GoogleFonts.lato(fontWeight: FontWeight.w700, color: AppColors.errorDark),
                         ),
                         TextSpan(
                           text: "All your data will be lost permanently.\nAre you sure you want to proceed?",
-                          style: GoogleFonts.lato(color: Colors.red.shade700),
+                          style: GoogleFonts.lato(color: AppColors.errorDark),
                         ),
                       ],
                     ),
@@ -273,7 +273,7 @@ class AccountDeactivatedPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -285,7 +285,7 @@ class AccountDeactivatedPage extends StatelessWidget {
                   width: 72,
                   height: 72,
                   decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-                  child: const Icon(Icons.check, color: Colors.white, size: 36),
+                  child: const Icon(Icons.check, color: AppColors.white, size: 36),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -297,7 +297,7 @@ class AccountDeactivatedPage extends StatelessWidget {
                 Text(
                   "You can reactivate your account at any time by logging back in.",
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(color: Colors.grey.shade700),
+                  style: GoogleFonts.lato(color: AppColors.greyShade700),
                 ),
                 const SizedBox(height: 28),
                 PrimaryButton(
@@ -322,7 +322,7 @@ class AccountDeletedPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -334,7 +334,7 @@ class AccountDeletedPage extends StatelessWidget {
                   width: 72,
                   height: 72,
                   decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-                  child: const Icon(Icons.check, color: Colors.white, size: 36),
+                  child: const Icon(Icons.check, color: AppColors.white, size: 36),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -346,7 +346,7 @@ class AccountDeletedPage extends StatelessWidget {
                 Text(
                   "All data associated with your account has been permanently removed.",
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(color: Colors.grey.shade700),
+                  style: GoogleFonts.lato(color: AppColors.greyShade700),
                 ),
                 const SizedBox(height: 28),
                 PrimaryButton(

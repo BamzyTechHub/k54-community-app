@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 
@@ -51,7 +51,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
     Color bg;
     Color fg;
     if (widget.outline) {
-      bg = _pressed ? widget.outlineColor.withValues(alpha: 0.08) : Colors.transparent;
+      bg = _pressed ? widget.outlineColor.withValues(alpha: 0.08) : AppColors.transparent;
       fg = widget.outlineColor;
     } else {
       bg = disabled
@@ -79,7 +79,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
               ? SizedBox(
                   height: 22,
                   width: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: widget.outline ? widget.outlineColor : Colors.black54),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: widget.outline ? widget.outlineColor : AppColors.black54),
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,

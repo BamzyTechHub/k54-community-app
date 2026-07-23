@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
@@ -131,7 +131,7 @@ final AuthService authService = AuthService();
   Widget build(BuildContext context) {
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
 
@@ -176,7 +176,7 @@ final AuthService authService = AuthService();
                   "Input your details below to proceed",
 
                   style: TextStyle(
-                    color: Colors.grey,
+                    color: AppColors.grey,
                     fontSize: 14,
                   ),
                 ),
@@ -245,12 +245,12 @@ Row(
         height: 26,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          color: agree ? const Color(0xFF008000) : Colors.transparent,
+          color: agree ? const Color(0xFF008000) : AppColors.transparent,
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(5),
         ),
         child: agree
-            ? const Icon(Icons.check, size: 18, color: Colors.white)
+            ? const Icon(Icons.check, size: 18, color: AppColors.white)
             : null,
       ),
     ),
@@ -334,7 +334,7 @@ Row(
       "Already Have an account? ",
       style: TextStyle(
         fontSize: 16,
-        color: Colors.black,
+        color: AppColors.black,
       ),
     ),
 

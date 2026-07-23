@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/messaging/screens/messages_page.dart';
@@ -26,7 +26,7 @@ class _CommunicationNavigationState extends State<CommunicationNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: pages[currentIndex],
       bottomNavigationBar: SafeArea(
         child: Row(
@@ -92,7 +92,7 @@ class _CommunicationNavigationState extends State<CommunicationNavigation> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFE8EFE8) : Colors.transparent,
+            color: isSelected ? const Color(0xFFE8EFE8) : AppColors.transparent,
             border: isSelected
                 ? const Border(top: BorderSide(color: AppColors.green, width: 2))
                 : null,

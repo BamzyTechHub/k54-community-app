@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
@@ -59,7 +59,7 @@ class K54BottomNavigation extends StatelessWidget {
 
     return SafeArea(
       child: Container(
-        color: Colors.white,
+        color: AppColors.white,
         height: 56,
         child: Row(
           children: List.generate(items.length, (index) {
@@ -82,7 +82,7 @@ class K54BottomNavigation extends StatelessWidget {
                 isSelected
                     ? ShaderMask(
                         shaderCallback: (bounds) => AppColors.brandGradient.createShader(bounds),
-                        child: Icon(icon, size: 24, color: Colors.white),
+                        child: Icon(icon, size: 24, color: AppColors.white),
                       )
                     : Icon(icon, size: 24, color: AppColors.buttonRegularBg),
                 const SizedBox(height: 4),
@@ -91,7 +91,7 @@ class K54BottomNavigation extends StatelessWidget {
                         shaderCallback: (bounds) => AppColors.brandGradient.createShader(bounds),
                         child: Text(
                           label,
-                          style: GoogleFonts.poppins(fontSize: 10, color: Colors.white),
+                          style: GoogleFonts.poppins(fontSize: 10, color: AppColors.white),
                         ),
                       )
                     : Text(

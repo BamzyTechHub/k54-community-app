@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -97,7 +97,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Remove", style: TextStyle(color: Colors.red)),
+            child: const Text("Remove", style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -141,7 +141,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -191,7 +191,7 @@ class _ChangeProfilePhotoPageState extends State<ChangeProfilePhotoPage> {
               ),
               _option(
                 icon: Icons.delete_outline,
-                color: Colors.red,
+                color: AppColors.error,
                 label: "Remove Photo",
                 onTap: _uploading ? () {} : _removePhoto,
               ),

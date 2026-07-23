@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:k54_mobile/features/activity/models/comment_model.dart';
@@ -203,7 +204,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
         child: Container(
           height: MediaQuery.of(context).size.height * 0.85,
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: AppColors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
           ),
           child: Column(
@@ -232,7 +233,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
         width: 40,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.grey.shade300,
+          color: AppColors.greyShade300,
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -368,7 +369,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                     children: [
                       Text(
                         _relativeTime(comment.createdAt),
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: AppColors.greyShade600),
                       ),
                       const SizedBox(width: 14),
                       GestureDetector(
@@ -378,7 +379,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: comment.isLiked ? Colors.red : Colors.grey.shade600,
+                            color: comment.isLiked ? AppColors.error : AppColors.greyShade600,
                           ),
                         ),
                       ),
@@ -391,7 +392,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade600,
+                              color: AppColors.greyShade600,
                             ),
                           ),
                         ),
@@ -453,6 +454,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 decoration: InputDecoration(
                   hintText: _replyingTo != null ? "Write a reply..." : "Write a comment...",
                   border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
                 ),
               ),
             ),
@@ -481,11 +483,11 @@ class _CommentsSheetState extends State<CommentsSheet> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.comments_disabled_outlined,
-              size: 16, color: Colors.grey.shade600),
+              size: 16, color: AppColors.greyShade600),
           const SizedBox(width: 8),
           Text(
             "Comments are closed for this post",
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 13, color: AppColors.greyShade600),
           ),
         ],
       ),

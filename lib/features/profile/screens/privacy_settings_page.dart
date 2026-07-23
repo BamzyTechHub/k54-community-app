@@ -1,15 +1,24 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/profile/screens/privacy_visibility_pages.dart';
+import 'package:k54_mobile/features/profile/screens/profile_field_visibility_page.dart';
 
-/// Matches the Privacy Settings Figma frame (node 491:290). Every
-/// dropdown/toggle here is real, interactive local UI state - there's no
-/// confirmed BuddyBoss privacy REST endpoint for any of these fields, so
-/// Save Changes says so explicitly instead of pretending the selection
-/// was persisted.
+/// Matches the Privacy Settings Figma frame (node 491:290).
+///
+/// "Profile Visibility" is now real - confirmed live 2026-07-20, BuddyBoss
+/// genuinely has a per-xprofile-field visibility setting (Public/All
+/// Members/My Connections/Only Me per field), just not shaped like this
+/// row's old fake 3-option picker; it now opens
+/// [ProfileFieldVisibilityPage], the real thing. Every other row here
+/// (Last Seen, Profile Picture Visibility, Who Can Message Me, Who Can
+/// Add Me to Groups, Location Sharing, Data Collection, Third-Party
+/// Access, Notify on Screenshot) has no equivalent anywhere in the site's
+/// confirmed REST surface (checked the full 842-route index) - these stay
+/// real, interactive local UI state with an honest "not available"
+/// disclosure on Save, same as before.
 ///
 /// Corrected 2026-07-18 against fresh Figma screenshots: Profile
 /// Visibility / Last Seen / Profile Picture Visibility / Who Can Message
@@ -26,7 +35,6 @@ class PrivacySettingsPage extends StatefulWidget {
 }
 
 class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
-  String _profileVisibility = "Everyone";
   String _lastSeen = "Everyone";
   String _onlineVisibility = "Same as last seen";
   String _profilePictureVisibility = "Everyone";
@@ -84,7 +92,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -113,13 +121,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
               const SizedBox(height: 25),
               _navRow(
                 "Profile Visibility",
-                _profileVisibility,
-                () => _pushRadioSelect(
-                  title: "Profile Visibility",
-                  subtitle: "Who can view my profile and basic information",
-                  options: _visibilityOptions,
-                  current: _profileVisibility,
-                  onSelected: (v) => setState(() => _profileVisibility = v),
+                "Manage",
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileFieldVisibilityPage()),
                 ),
               ),
               _navRow("Last Seen", _lastSeen, _pushLastSeen),
@@ -223,7 +228,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
             Expanded(
               child: Text(title, style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.jetBlack)),
             ),
-            Text(value, style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade600)),
+            Text(value, style: GoogleFonts.lato(fontSize: 14, color: AppColors.greyShade600)),
             const Icon(Icons.chevron_right, size: 18, color: AppColors.jetBlack),
           ],
         ),
@@ -278,7 +283,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: Colors.white,
+            activeThumbColor: AppColors.white,
             activeTrackColor: AppColors.green,
           ),
         ],

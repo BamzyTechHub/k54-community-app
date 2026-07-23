@@ -26,6 +26,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>K54 needs microphone access to record voice messages and for voice/video calls.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>K54 needs camera access to take photos for posts, your profile picture, and video calls.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>K54 uses your location to power location-based features.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>K54 needs access to your photo library to attach photos and videos to posts and messages.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>K54 uses Bluetooth to route call audio to connected headsets/speakers.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

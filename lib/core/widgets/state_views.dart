@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 
@@ -20,12 +20,12 @@ class K54EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: Colors.grey.shade400),
+            Icon(icon, size: 48, color: AppColors.greyShade400),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14.5),
+              style: TextStyle(color: AppColors.greyShade600, fontSize: 14.5),
             ),
             if (action != null) ...[
               const SizedBox(height: 16),
@@ -56,12 +56,12 @@ class K54ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wifi_off_rounded, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.wifi_off_rounded, size: 40, color: AppColors.greyShade400),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14.5),
+              style: TextStyle(color: AppColors.greyShade600, fontSize: 14.5),
             ),
             const SizedBox(height: 14),
             TextButton.icon(

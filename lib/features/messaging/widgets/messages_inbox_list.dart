@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/k54_route.dart';
@@ -57,7 +57,7 @@ class _MessagesInboxListState extends State<MessagesInboxList> {
       isOnline: thread.otherUserOnline,
       title: thread.otherUserName,
       titleStyle: TextStyle(fontSize: 17, fontWeight: thread.isUnread ? FontWeight.bold : FontWeight.w600),
-      titlePrefix: thread.isPinned ? Icon(Icons.push_pin, size: 13, color: Colors.grey.shade500) : null,
+      titlePrefix: thread.isPinned ? Icon(Icons.push_pin, size: 13, color: AppColors.greyShade500) : null,
       subtitle: thread.lastMessagePreview,
       onTap: () async {
         await Navigator.push(context, k54Route(ChatPage(threadId: thread.id, thread: thread)));
@@ -77,7 +77,7 @@ class _MessagesInboxListState extends State<MessagesInboxList> {
               decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
               child: Text(
                 "${thread.unreadCount}",
-                style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: AppColors.white, fontSize: 8, fontWeight: FontWeight.bold),
               ),
             ),
           ],

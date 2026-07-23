@@ -1,9 +1,12 @@
+﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/widgets/k54_dialog.dart';
@@ -15,6 +18,11 @@ import 'package:k54_mobile/features/activity/widgets/reaction_picker.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/features/activity/screens/create_post_page.dart';
 import 'package:k54_mobile/features/activity/widgets/comments_sheet.dart';
+import 'package:k54_mobile/features/groups/repositories/groups_repository.dart';
+import 'package:k54_mobile/features/groups/screens/group_detail_page.dart';
+import 'package:k54_mobile/features/live_video/models/live_channel_status.dart';
+import 'package:k54_mobile/features/live_video/repositories/live_video_repository.dart';
+import 'package:k54_mobile/features/live_video/screens/live_watch_page.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
@@ -52,7 +60,7 @@ class PostCard extends StatelessWidget {
         vertical: 10,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         // Exact values from the K54 HOME PAGE Figma frame (node 571:714),
         // pulled via the REST API 2026-07-16 - was AppColors.border/15
         // (an approximation) before this measurement existed.
@@ -74,13 +82,13 @@ class PostCard extends StatelessWidget {
         Icon(
           Icons.push_pin,
           size: 14,
-          color: Colors.orange,
+          color: AppColors.warning,
         ),
         SizedBox(width: 4),
         Text(
           "Pinned",
           style: TextStyle(
-            color: Colors.orange,
+            color: AppColors.warning,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -142,24 +150,12 @@ class PostCard extends StatelessWidget {
 
           const SizedBox(width: 6),
 
-          Text(
-            post.time.isEmpty
-                ? post.createdAt.toString().substring(0,10)
-                : post.time,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
-          ),
-
-          const SizedBox(width: 5),
-
           Icon(
             post.privacy == "public"
                 ? Icons.public
                 : Icons.lock_outline,
             size: 14,
-            color: Colors.grey,
+            color: AppColors.grey,
           ),
         ],
       ),
@@ -184,6 +180,13 @@ _PostMenuButton(
             // rather than a cohesive scroll.
             const SizedBox(height: 4),
 
+            if (post.isLiveStreamActivity)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _LiveStreamCard(post: post),
+              ),
+
+            if (!post.isLiveStreamActivity)
             Html(
   data: post.caption,
   // Was completely unwired - a link in a post's text did nothing at
@@ -215,12 +218,24 @@ _PostMenuButton(
     "p": Style(
       margin: Margins.only(bottom: 10),
     ),
+    // No underline - green alone reads as interactive, matching the
+    // "joined group"/"connected with" activity mentions - direct tester
+    // feedback that the underline looked off.
     "a": Style(
       color: AppColors.green,
-      textDecoration: TextDecoration.underline,
+      textDecoration: TextDecoration.none,
     ),
   },
 ),
+
+            // Real deep link into the actual discussion thread - matches
+            // the real site's own "Join Discussion" link on these two
+            // activity types exactly (confirmed live 2026-07-22).
+            if (post.discussionId != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: _JoinDiscussionLink(activityType: post.activityType, discussionId: post.discussionId!),
+              ),
 
             if (post.postImage.isNotEmpty)
               Padding(
@@ -245,6 +260,31 @@ _PostMenuButton(
                 ),
               ),
 
+if (post.photos.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: PostPhotosGrid(photos: post.photos),
+  ),
+
+if (post.videos.isNotEmpty)
+  ...post.videos.map((video) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: PostVideoPlayer(video: video),
+      )),
+
+if (post.documents.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      children: post.documents
+          .map((doc) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: PostDocumentTile(document: doc),
+              ))
+          .toList(),
+    ),
+  ),
+
 if (post.previewData.isNotEmpty)
   Padding(
     padding: const EdgeInsets.only(top: 12),
@@ -261,10 +301,11 @@ if (post.previewData.isNotEmpty)
             const SizedBox(height: 4),
 
           Row(
-  // Left-packed with a fixed 64px gap, not stretched full-width - matches
-  // the K54 HOME PAGE frame's action row exactly (node 571:714, "Frame
-  // 15357": autolayout HORIZONTAL, itemSpacing=64, items span ~305 of the
-  // card's 313px content width, not edge-to-edge).
+  // Centered as a group (was left-packed - direct tester feedback that
+  // the buttons "are not aligned to the center of the card"). Keeps the
+  // fixed 64px gap between items from the K54 HOME PAGE frame (node
+  // 571:714, "Frame 15357"), just no longer pinned to the left edge.
+  mainAxisAlignment: MainAxisAlignment.center,
   children: [
     _LikeButton(
       reactedId: post.reactedId,
@@ -312,7 +353,7 @@ if (post.previewData.isNotEmpty)
     const SizedBox(width: 64),
     _ActionButton(
       icon: Icons.chat_bubble_outline,
-      label: post.comments.toString(),
+      label: post.comments > 0 ? "${post.comments} Comments" : "Comment",
       onTap: () => CommentsSheet.show(context, post, onPostChanged: onPostChanged),
     ),
     const SizedBox(width: 64),
@@ -320,7 +361,7 @@ if (post.previewData.isNotEmpty)
       // Figma's node 571:714 action row names this icon
       // "hugeicons:repost" - repeat is the closest built-in match.
       icon: Icons.repeat,
-      label: post.shares.toString(),
+      label: post.shares > 0 ? "${post.shares} Reposts" : "Repost",
       onTap: () async {
         // Optimistic increment, no reliance on the response shape - see
         // BuddyBossService.shareActivity's doc comment for why.
@@ -395,22 +436,30 @@ class _PostMenuButtonState extends State<_PostMenuButton> {
 
   void _openMenu() {
     final post = widget.post;
-    final items = post.canEdit
-        ? [
-            (value: "edit", label: "Edit", destructive: false),
-            (value: "delete", label: "Delete", destructive: true),
-            // No confirmed permission field exists for pinning
-            // specifically (only can_edit/can_delete/can_comment are),
-            // so this reuses the same owner-level gate as edit/delete
-            // rather than a dedicated one.
-            (value: post.isPinned ? "unpin" : "pin", label: post.isPinned ? "Unpin" : "Pin to top", destructive: false),
-            (
-              value: post.commentsClosed ? "open_comments" : "close_comments",
-              label: post.commentsClosed ? "Open Comments" : "Close Comments",
-              destructive: false,
-            ),
-          ]
-        : [(value: "report", label: "Report", destructive: false)];
+    // Built per-permission, not gated behind a single canEdit check - real
+    // data confirmed live 2026-07-23 that a post commonly has can_edit:
+    // false (WordPress's edit window has passed) while can_delete stays
+    // true, which used to collapse the ENTIRE menu down to just "Report"
+    // even though Delete/Pin/Close Comments should still be available
+    // (direct tester feedback: "the only option there... is Report").
+    final items = <({String value, String label, bool destructive})>[
+      if (post.canEdit) (value: "edit", label: "Edit", destructive: false),
+      if (post.canDelete) (value: "delete", label: "Delete", destructive: true),
+      // No confirmed permission field exists for pinning/closing comments
+      // specifically (only can_edit/can_delete/can_comment are) - reuses
+      // can_delete as the "you own this post" gate since it stays true
+      // longer than can_edit and is the closer match for "can manage this
+      // post" than the time-limited edit window.
+      if (post.canDelete)
+        (value: post.isPinned ? "unpin" : "pin", label: post.isPinned ? "Unpin" : "Pin to top", destructive: false),
+      if (post.canDelete)
+        (
+          value: post.commentsClosed ? "open_comments" : "close_comments",
+          label: post.commentsClosed ? "Open Comments" : "Close Comments",
+          destructive: false,
+        ),
+      if (!post.canEdit && !post.canDelete) (value: "report", label: "Report", destructive: false),
+    ];
 
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
@@ -431,10 +480,10 @@ class _PostMenuButtonState extends State<_PostMenuButton> {
             followerAnchor: Alignment.topRight,
             offset: const Offset(0, 4),
             child: Material(
-              color: Colors.white,
+              color: AppColors.white,
               borderRadius: BorderRadius.circular(12),
               elevation: 6,
-              shadowColor: Colors.black.withValues(alpha: 0.2),
+              shadowColor: AppColors.black.withValues(alpha: 0.2),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Column(
@@ -453,7 +502,7 @@ class _PostMenuButtonState extends State<_PostMenuButton> {
                                 item.label,
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
-                                  color: item.destructive ? Colors.red : AppColors.jetBlack,
+                                  color: item.destructive ? AppColors.error : AppColors.jetBlack,
                                 ),
                               ),
                             ),
@@ -497,7 +546,7 @@ class _PostMenuButtonState extends State<_PostMenuButton> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                child: const Text("Delete", style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),
@@ -508,7 +557,22 @@ class _PostMenuButtonState extends State<_PostMenuButton> {
           await BuddyBossService().deletePost(post.id);
           widget.onPostDeleted?.call();
         } catch (e) {
-          if (mounted) {
+          // A thrown error here doesn't always mean the delete actually
+          // failed server-side - confirmed live 2026-07-23 that a delete
+          // call can succeed on the server (post genuinely gone) while the
+          // client still sees an error for an unrelated reason, which
+          // used to leave the "deleted" post stuck showing in the app
+          // even though it no longer existed on the site. Checking the
+          // real current state instead of guessing from the error alone.
+          bool stillExists = true;
+          try {
+            await BuddyBossService().getActivity(post.id);
+          } catch (_) {
+            stillExists = false;
+          }
+          if (!stillExists) {
+            widget.onPostDeleted?.call();
+          } else if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text("Couldn't delete post: $e")),
             );
@@ -720,13 +784,14 @@ class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderState
             // node coordinates (icon bottom y=377, label top y=378) - not
             // an autolayout gap value, since this group has none declared.
             const SizedBox(height: 1),
-            // Real reaction count, not the static "Like" word Figma's
-            // mockup shows - reverted 2026-07-17 per explicit direction:
-            // the app needs to show actual interaction data, not
-            // placeholder text copied from a design mockup that never had
-            // live data behind it. _AnimatedCount makes the number change
+            // Real count + word label together (was count-only, reverted
+            // 2026-07-17 from Figma's static "Like" word since it had no
+            // real data behind it - now restoring the word too per direct
+            // tester feedback: "you have naming on only the send button...
+            // try naming them all", combined with the real count rather
+            // than dropping it). _AnimatedCount makes the value change
             // itself visible instead of an instant jump.
-            _AnimatedCount(value: widget.count.toString()),
+            _AnimatedCount(value: widget.count > 0 ? "${widget.count} Likes" : "Like"),
           ],
         ),
       ),
@@ -736,11 +801,9 @@ class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderState
 
 /// Icon-above-label action button, matching the K54 HOME PAGE Figma
 /// frame's icon-over-label layout (node 571:714, "Frame 15357"). Label
-/// is the real comment/share count for those two buttons, and the
-/// static word "Send" for the share-sheet trigger (which has no count
-/// concept) - not the fixed word labels Figma's own mockup shows, since
-/// those never had live data behind them and the app needs to display
-/// real interaction numbers.
+/// combines the real count with its word ("12 Comments"/"Repost" when
+/// zero) for Comment/Repost, and the static word "Send" for the
+/// share-sheet trigger (which has no count concept).
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -796,6 +859,291 @@ class _AnimatedCount extends StatelessWidget {
   }
 }
 
+/// Real photo attachments from `bp_media_ids` (confirmed live 2026-07-19 -
+/// see docs/api-audit/activity-feed.md). Single photo goes full-width like
+/// the existing feature-image; 2+ show as a square grid, matching the
+/// familiar social-feed pattern rather than a horizontal scroller, since
+/// BuddyBoss's own web UI does the same for multi-photo posts.
+class PostPhotosGrid extends StatelessWidget {
+  final List<PostPhoto> photos;
+
+  const PostPhotosGrid({super.key, required this.photos});
+
+  void _openViewer(BuildContext context, int index) {
+    Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      barrierColor: AppColors.black,
+      pageBuilder: (_, _, _) => _PhotoViewerPage(photos: photos, initialIndex: index),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (photos.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: TapScale(
+          onTap: () => _openViewer(context, 0),
+          child: CachedNetworkImage(
+            imageUrl: photos.first.imageUrl,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholder: (_, _) => Container(
+              height: 250,
+              alignment: Alignment.center,
+              child: const CircularProgressIndicator(color: AppColors.green),
+            ),
+            errorWidget: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: photos.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 6,
+        mainAxisSpacing: 6,
+        childAspectRatio: 1,
+      ),
+      itemBuilder: (context, index) => ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: TapScale(
+          onTap: () => _openViewer(context, index),
+          child: CachedNetworkImage(
+            imageUrl: photos[index].imageUrl,
+            fit: BoxFit.cover,
+            placeholder: (_, _) => Container(color: AppColors.greyShade200),
+            errorWidget: (_, _, _) => Container(color: AppColors.greyShade200),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-screen swipeable photo viewer, opened on tap - a plain grid with no
+/// way to see a photo at full size wouldn't be very usable once there's
+/// more than one attached.
+class _PhotoViewerPage extends StatelessWidget {
+  final List<PostPhoto> photos;
+  final int initialIndex;
+
+  const _PhotoViewerPage({required this.photos, required this.initialIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Scaffold(
+        backgroundColor: AppColors.black,
+        body: SafeArea(
+          child: PageView.builder(
+            controller: PageController(initialPage: initialIndex),
+            itemCount: photos.length,
+            itemBuilder: (context, index) => InteractiveViewer(
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: photos[index].imageUrl,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Real video attachments from `bp_videos` (confirmed live 2026-07-20 -
+/// the `bb-video-preview/{token}/{token}` URL is a direct streamable
+/// video/mp4 response, not an HTML player page). Deliberately doesn't
+/// initialize the VideoPlayerController until the poster is tapped, so a
+/// feed with several video posts doesn't open several network video
+/// streams just from being scrolled past.
+class PostVideoPlayer extends StatefulWidget {
+  final PostVideo video;
+
+  const PostVideoPlayer({super.key, required this.video});
+
+  @override
+  State<PostVideoPlayer> createState() => PostVideoPlayerState();
+}
+
+class PostVideoPlayerState extends State<PostVideoPlayer> {
+  VideoPlayerController? _controller;
+  bool _loading = false;
+  bool _failed = false;
+
+  Future<void> _play() async {
+    if (widget.video.videoUrl.isEmpty) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.video.videoUrl));
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _loading = false;
+      });
+      controller.play();
+    } catch (_) {
+      controller.dispose();
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller != null && controller.value.isInitialized) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: GestureDetector(
+            onTap: () => setState(() {
+              controller.value.isPlaying ? controller.pause() : controller.play();
+            }),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                VideoPlayer(controller),
+                if (!controller.value.isPlaying)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: AppColors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                    child: const Icon(Icons.play_arrow, color: AppColors.white, size: 32),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: TapScale(
+        onTap: _loading ? null : _play,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: widget.video.posterUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: widget.video.posterUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => Container(color: AppColors.black87),
+                    )
+                  : Container(color: AppColors.black87),
+            ),
+            if (_loading)
+              const CircularProgressIndicator(color: AppColors.white)
+            else if (_failed)
+              const Icon(Icons.error_outline, color: AppColors.white, size: 32)
+            else
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: AppColors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow, color: AppColors.white, size: 32),
+              ),
+            if (widget.video.durationLabel.isNotEmpty && !_loading)
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(4)),
+                  child: Text(widget.video.durationLabel, style: const TextStyle(color: AppColors.white, fontSize: 11)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Real document attachments from `bp_documents` (confirmed live
+/// 2026-07-19). No in-app document viewer exists yet, so tapping opens
+/// the real download URL externally rather than faking an in-app preview.
+class PostDocumentTile extends StatelessWidget {
+  final PostDocument document;
+
+  const PostDocumentTile({super.key, required this.document});
+
+  @override
+  Widget build(BuildContext context) {
+    return TapScale(
+      onTap: () {
+        if (document.downloadUrl.isNotEmpty) {
+          launchUrl(Uri.parse(document.downloadUrl), mode: LaunchMode.externalApplication);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7F5),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFECECEC)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: AppColors.green.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.insert_drive_file_outlined, color: AppColors.green, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    document.filename,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.jetBlack),
+                  ),
+                  if (document.size.isNotEmpty || document.extension.isNotEmpty)
+                    Text(
+                      [document.extension.toUpperCase(), document.size].where((s) => s.isNotEmpty).join(" · "),
+                      style: TextStyle(fontSize: 11, color: AppColors.greyShade600),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.download_outlined, color: AppColors.grey, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Fetches and shows a post author's real professional-status text (e.g.
 /// "Freelancer, Travel Blogger.") - see BuddyBossService.getUserProfession's
 /// doc comment for why this can't just read post.profession directly.
@@ -825,6 +1173,193 @@ class _AuthorProfession extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Real deep link from a discussion-related Feed activity into the
+/// actual thread - resolves the activity's topic/reply id to a real
+/// Topic (see GroupsRepository.resolveDiscussionActivity's doc comment)
+/// then opens it the same way the group's own Discussions tab does.
+class _JoinDiscussionLink extends StatefulWidget {
+  final String activityType;
+  final String discussionId;
+
+  const _JoinDiscussionLink({required this.activityType, required this.discussionId});
+
+  @override
+  State<_JoinDiscussionLink> createState() => _JoinDiscussionLinkState();
+}
+
+class _JoinDiscussionLinkState extends State<_JoinDiscussionLink> {
+  bool _loading = false;
+
+  Future<void> _open() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final resolved = await GroupsRepository.instance.resolveDiscussionActivity(
+        activityType: widget.activityType,
+        discussionId: widget.discussionId,
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TopicDetailPage(topic: resolved.topic, forumId: resolved.forumId),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't open discussion: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TapScale(
+      onTap: _open,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _loading
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
+                )
+              : const Icon(Icons.forum_outlined, size: 16, color: AppColors.green),
+          const SizedBox(width: 6),
+          Text(
+            "Join Discussion",
+            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.green),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Real "someone is live" card, replacing the empty shell WPStream's own
+/// activity template inserts (see Post.isLiveStreamActivity's doc comment -
+/// that div only ever renders as a blank box in this app, since it needs
+/// WPStream's own site JS to fill it). Polls the broadcaster's real
+/// channel status (not just a one-time check on mount) so the card
+/// reflects an ended stream as "ENDED" instead of staying stuck on "LIVE"
+/// forever for a card that's been sitting in a scrolled feed - direct
+/// tester feedback that it "always shows LIVE" was this exact gap.
+class _LiveStreamCard extends StatefulWidget {
+  final Post post;
+
+  const _LiveStreamCard({required this.post});
+
+  @override
+  State<_LiveStreamCard> createState() => _LiveStreamCardState();
+}
+
+class _LiveStreamCardState extends State<_LiveStreamCard> {
+  static const _pollInterval = Duration(seconds: 15);
+
+  LiveChannelStatus? _status;
+  bool _loading = true;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _load(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    try {
+      final status = await LiveVideoRepository.instance.getStatusForUser(widget.post.userId);
+      if (mounted) {
+        setState(() {
+          _status = status;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted && !silent) setState(() => _loading = false);
+    }
+  }
+
+  void _open() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => LiveWatchPage(post: widget.post)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLive = _status?.isLive ?? false;
+    final poster = _status?.posterUrl ?? '';
+
+    return TapScale(
+      onTap: _open,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.jetBlack,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (poster.isNotEmpty)
+                CachedNetworkImage(imageUrl: poster, fit: BoxFit.cover, errorWidget: (_, _, _) => const SizedBox.shrink())
+              else
+                Container(color: AppColors.jetBlack),
+              Container(color: AppColors.black.withValues(alpha: 0.25)),
+              if (_loading)
+                const Center(child: CircularProgressIndicator(color: AppColors.white54))
+              else
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: AppColors.black.withValues(alpha: 0.45), shape: BoxShape.circle),
+                    child: Icon(isLive ? Icons.play_arrow : Icons.videocam_off_outlined, color: AppColors.white, size: 32),
+                  ),
+                ),
+              Positioned(
+                left: 10,
+                top: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isLive ? AppColors.error : AppColors.white24,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isLive ? "LIVE" : "ENDED",
+                    style: GoogleFonts.lato(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 0.5),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: Text(
+                  isLive ? "${widget.post.username} is live now - tap to watch" : "${widget.post.username}'s live stream has ended",
+                  style: GoogleFonts.poppins(color: AppColors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

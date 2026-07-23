@@ -78,6 +78,21 @@ class AiRepository {
     await _persist();
   }
 
+  /// Appends an assistant message without calling the real `/chat`
+  /// backend - used for the scripted, deterministic group-creation Q&A
+  /// (see AiChatController), which the backend has no awareness of at
+  /// all (no function-calling/intent-detection exists there - confirmed
+  /// from the PHP source, see ai-assistant.md).
+  Future<void> appendAssistantScripted(String text, {String? createdGroupId}) async {
+    _messages.add(AiChatMessage(
+      role: "assistant",
+      content: text,
+      timestamp: DateTime.now(),
+      createdGroupId: createdGroupId,
+    ));
+    await _persist();
+  }
+
   /// Sends the most recently appended user turn to the backend and
   /// appends the assistant's reply to local history. Throws
   /// [AiChatException] if the backend's reply matches one of its two
@@ -120,11 +135,21 @@ class AiRepository {
     required String groupName,
     required String description,
     required String privacy,
+    String? type,
+    String? topics,
+    String? forum,
+    String? courseTab,
+    String? inviteMembers,
   }) async {
     final response = await _api.createGroup(
       groupName: groupName,
       description: description,
       privacy: privacy,
+      type: type,
+      topics: topics,
+      forum: forum,
+      courseTab: courseTab,
+      inviteMembers: inviteMembers,
     );
     return Map<String, dynamic>.from(response.data);
   }

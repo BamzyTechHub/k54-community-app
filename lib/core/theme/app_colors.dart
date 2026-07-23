@@ -82,4 +82,46 @@ class AppColors {
   static const groupCardAccent = Color(0xFF588D78);
   static const groupMutedText = Color(0xFF515050);
 
+  /// Fully transparent - same value as Flutter's own `Colors.transparent`,
+  /// added so call sites never need to reach for the stock Material
+  /// `Colors` class at all, even for "no color."
+  static const transparent = Color(0x00000000);
+
+  /// Neutral/grey scale - same literal values as Flutter's Material grey
+  /// swatch (`Colors.grey`/`Colors.grey.shadeXXX`), centralized here
+  /// 2026-07-21 so every screen sources greys from the app's own palette
+  /// instead of scattering direct `Colors.grey.shadeXXX` references.
+  /// Values are unchanged from Material's own - this is a source-of-truth
+  /// consolidation, not a redesign.
+  static const grey = Color(0xFF9E9E9E);
+  static const greyShade200 = Color(0xFFEEEEEE);
+  static const greyShade300 = Color(0xFFE0E0E0);
+  static const greyShade400 = Color(0xFFBDBDBD);
+  static const greyShade500 = grey;
+  static const greyShade600 = Color(0xFF757575);
+  static const greyShade700 = Color(0xFF616161);
+
+  /// Status colors - same literal values as Flutter's Material palette
+  /// (`Colors.red`/`Colors.orange`/`Colors.blue`/`Colors.amber.shade700`),
+  /// centralized here for the same reason as the grey scale above.
+  static const error = Color(0xFFF44336);
+  static const errorLight = Color(0xFFEF9A9A);
+  static const errorMedium = Color(0xFFEF5350);
+  static const errorDark = Color(0xFFD32F2F);
+  static const warning = Color(0xFFFF9800);
+  static const warningDark = Color(0xFFEF6C00);
+  static const info = Color(0xFF2196F3);
+  static const amber = Color(0xFFFFA000);
+
+  /// Exact literal values from Flutter's own `Colors.black87`/`white70`/
+  /// etc. (real compile-time constants, not `.withValues()` calls - those
+  /// aren't usable in a `const` context, which several of this app's
+  /// existing `const TextStyle(...)` call sites need).
+  static const black87 = Color(0xDD000000);
+  static const black54 = Color(0x8A000000);
+  static const black38 = Color(0x61000000);
+  static const white70 = Color(0xB3FFFFFF);
+  static const white54 = Color(0x8AFFFFFF);
+  static const white24 = Color(0x3DFFFFFF);
+
 }

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/biometric_service.dart';
 import 'package:k54_mobile/features/auth/screens/touch_id_verified.dart';
@@ -45,7 +46,7 @@ class TouchId extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
         child: Padding(
@@ -70,7 +71,7 @@ class TouchId extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: AppColors.black,
                 ),
               ),
 
@@ -82,7 +83,7 @@ class TouchId extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey,
+                  color: AppColors.grey,
                   height: 1.3,
                 ),
               ),

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,7 +80,7 @@ class _TwoFactorAuthPageState extends State<TwoFactorAuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -107,7 +107,7 @@ class _TwoFactorAuthPageState extends State<TwoFactorAuthPage> {
                   width: 140,
                   height: 140,
                   decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-                  child: const Icon(Icons.shield_outlined, color: Colors.white, size: 60),
+                  child: const Icon(Icons.shield_outlined, color: AppColors.white, size: 60),
                 ),
               ),
               const SizedBox(height: 30),
@@ -126,7 +126,7 @@ class _TwoFactorAuthPageState extends State<TwoFactorAuthPage> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                      const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
                       const SizedBox(height: 8),
                       Text(
                         "The code you entered is incorrect. Please try again.",
@@ -180,7 +180,7 @@ class _TwoFactorAuthPageState extends State<TwoFactorAuthPage> {
           counterText: "",
           contentPadding: EdgeInsets.zero,
           filled: true,
-          fillColor: Colors.white,
+          fillColor: AppColors.white,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: AppColors.green),

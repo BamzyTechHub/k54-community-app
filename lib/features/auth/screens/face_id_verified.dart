@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
 
@@ -9,7 +10,7 @@ class FaceIdVerified extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
         child: Padding(
@@ -34,7 +35,7 @@ class FaceIdVerified extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: AppColors.black,
                 ),
               ),
 
@@ -46,7 +47,7 @@ class FaceIdVerified extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey,
+                  color: AppColors.grey,
                   height: 1.3,
                 ),
               ),
@@ -67,7 +68,7 @@ class FaceIdVerified extends StatelessWidget {
                 "Verified",
                 style: TextStyle(
                   fontSize: 18,
-                  color: Colors.grey,
+                  color: AppColors.grey,
                 ),
               ),
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/features/messaging/models/chat_message_model.dart';
@@ -229,6 +230,22 @@ class MessagingRepository {
     throw StateError("Couldn't start the conversation - it didn't appear in the inbox after creating it.");
   }
 
+  /// The real thread id backing a group's own "Messages" tab (a
+  /// group-wide Better Messages thread every member is auto-joined to -
+  /// confirmed live 2026-07-22, see BetterMessagesApiService.getGroups'
+  /// doc comment). Null if this group doesn't have Group Messages enabled
+  /// (no matching entry comes back for it).
+  Future<String?> getGroupThreadId(String groupId) async {
+    final response = await _api.getGroups();
+    final List raw = response.data is List ? response.data : const [];
+    for (final entry in raw.whereType<Map>()) {
+      if (entry['group_id']?.toString() == groupId) {
+        return entry['thread_id']?.toString();
+      }
+    }
+    return null;
+  }
+
   /// No confirmed REST endpoint marks a single thread read (the website
   /// only demonstrated this over its WebSocket's `threadOpen` event,
   /// deferred to Stage C) - this only updates the local cache/badge
@@ -265,9 +282,178 @@ class MessagingRepository {
     _recalculateUnread();
   }
 
+  Future<void> pinMessage({required String threadId, required String messageId}) async {
+    await _api.pinMessage(threadId: threadId, messageId: messageId);
+    _updateMessage(threadId, messageId, (m) => m.copyWith(isPinned: true));
+  }
+
+  Future<void> unpinMessage({required String threadId, required String messageId}) async {
+    await _api.unpinMessage(threadId: threadId, messageId: messageId);
+    _updateMessage(threadId, messageId, (m) => m.copyWith(isPinned: false));
+  }
+
+  Future<void> deleteMessage({required String threadId, required String messageId}) async {
+    await _api.deleteMessages(threadId: threadId, messageIds: [messageId]);
+    final index = _threadsCache.indexWhere((t) => t.id == threadId);
+    if (index != -1) {
+      final thread = _threadsCache[index];
+      _threadsCache[index] = thread.copyWith(
+        messages: thread.messages.where((m) => m.id != messageId).toList(),
+      );
+    }
+  }
+
+  /// Forwards [messageId] to one or more other threads, then re-fetches
+  /// this thread so the (unchanged) local view of it stays consistent -
+  /// forwarding doesn't affect the source thread, but this mirrors the
+  /// re-fetch discipline used everywhere else since the endpoint's
+  /// response doesn't reflect the *source* thread's state anyway.
+  Future<void> forwardMessage({required String messageId, required List<String> toThreadIds}) {
+    return _api.forwardMessage(messageId: messageId, threadIds: toThreadIds).then((_) {});
+  }
+
+  /// Two-step voice-note send (upload then reference by attachment id -
+  /// confirmed live 2026-07-20, see BetterMessagesApiService.sendVoice's
+  /// doc comment). Returns the reconciled message straight from the
+  /// response envelope, same as sendReply.
+  Future<ChatMessage> sendVoiceNote({required String threadId, required File audioFile}) async {
+    final userId = await currentUserId();
+    final uploadResponse = await _api.uploadAttachment(threadId: threadId, file: audioFile);
+    final attachmentId = uploadResponse.data is Map ? uploadResponse.data["id"] : null;
+    if (attachmentId == null) {
+      throw StateError("Voice note upload didn't return an attachment id");
+    }
+
+    final tempId = "tmp_${threadId}_${DateTime.now().millisecondsSinceEpoch}";
+    final sendResponse = await _api.sendVoice(
+      threadId: threadId,
+      attachmentId: attachmentId is int ? attachmentId : int.parse(attachmentId.toString()),
+      tempId: tempId,
+      tempTime: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    final envelope = sendResponse.data as Map<String, dynamic>;
+    final messagesRaw = (envelope['messages'] as List?) ?? [];
+    final usersRaw = (envelope['users'] as List?) ?? [];
+    final usersById = <String, Map<String, dynamic>>{};
+    for (final u in usersRaw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(u);
+      final id = (map['user_id'] ?? map['id'] ?? '').toString();
+      if (id.isNotEmpty) usersById[id] = map;
+    }
+
+    if (messagesRaw.isEmpty) {
+      throw StateError("Voice note send didn't return a message");
+    }
+    final messageMap = Map<String, dynamic>.from(messagesRaw.last as Map);
+    return ChatMessage.fromBetterMessages(
+      messageMap,
+      currentUserId: userId,
+      senderUser: usersById[(messageMap['sender_id'] ?? '').toString()],
+    );
+  }
+
+  /// Two-step generic file/image send (upload then reference by
+  /// attachment id via [BetterMessagesApiService.sendFile] - confirmed
+  /// live 2026-07-20, disposable-message test, see that method's doc
+  /// comment for the exact confirmed body shape).
+  Future<ChatMessage> sendFileMessage({required String threadId, required File file}) async {
+    final userId = await currentUserId();
+    final uploadResponse = await _api.uploadAttachment(threadId: threadId, file: file);
+    final attachmentId = uploadResponse.data is Map ? uploadResponse.data["id"] : null;
+    if (attachmentId == null) {
+      throw StateError("File upload didn't return an attachment id");
+    }
+
+    final tempId = "tmp_${threadId}_${DateTime.now().millisecondsSinceEpoch}";
+    final sendResponse = await _api.sendFile(
+      threadId: threadId,
+      attachmentId: attachmentId is int ? attachmentId : int.parse(attachmentId.toString()),
+      tempId: tempId,
+      tempTime: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    final envelope = sendResponse.data as Map<String, dynamic>;
+    final messagesRaw = (envelope['messages'] as List?) ?? [];
+    final usersRaw = (envelope['users'] as List?) ?? [];
+    final usersById = <String, Map<String, dynamic>>{};
+    for (final u in usersRaw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(u);
+      final id = (map['user_id'] ?? map['id'] ?? '').toString();
+      if (id.isNotEmpty) usersById[id] = map;
+    }
+
+    if (messagesRaw.isEmpty) {
+      throw StateError("File send didn't return a message");
+    }
+    final messageMap = Map<String, dynamic>.from(messagesRaw.last as Map);
+    return ChatMessage.fromBetterMessages(
+      messageMap,
+      currentUserId: userId,
+      senderUser: usersById[(messageMap['sender_id'] ?? '').toString()],
+    );
+  }
+
+  void _updateMessage(String threadId, String messageId, ChatMessage Function(ChatMessage) update) {
+    final index = _threadsCache.indexWhere((t) => t.id == threadId);
+    if (index == -1) return;
+    final thread = _threadsCache[index];
+    _threadsCache[index] = thread.copyWith(
+      messages: thread.messages.map((m) => m.id == messageId ? update(m) : m).toList(),
+    );
+  }
+
   Future<void> blockUser(String userId) => _api.blockUser(userId);
 
   Future<void> unblockUser(String userId) => _api.unblockUser(userId);
+
+  /// Starts a real call - confirmed live 2026-07-21 (see
+  /// BetterMessagesApiService.callCreate's doc comment). [token] is the
+  /// LiveKit JWT to hand to [CallController]/livekit_client's
+  /// `Room.connect` - the actual room name is embedded in it, the server
+  /// resolves it, nothing further to parse client-side.
+  Future<({String messageId, String token})> startCall({
+    required String threadId,
+    required String type,
+  }) async {
+    final response = await _api.callCreate(threadId: threadId, type: type);
+    final data = response.data as Map<String, dynamic>;
+    return (messageId: data['message_id'].toString(), token: data['token'].toString());
+  }
+
+  Future<void> markCallStarted({
+    required String threadId,
+    required String messageId,
+    required String type,
+  }) =>
+      _api.callStarted(threadId: threadId, messageId: messageId, type: type).then((_) {});
+
+  Future<void> sendCallUsage({
+    required String threadId,
+    required String messageId,
+    required int durationSeconds,
+    int bytesSent = 0,
+    int bytesReceived = 0,
+  }) =>
+      _api
+          .callUsage(
+            threadId: threadId,
+            messageId: messageId,
+            durationSeconds: durationSeconds,
+            bytesSent: bytesSent,
+            bytesReceived: bytesReceived,
+          )
+          .then((_) {});
+
+  Future<void> markCallMissed({
+    required String threadId,
+    required String messageId,
+    required String type,
+    required int durationSeconds,
+  }) =>
+      _api
+          .callMissed(threadId: threadId, messageId: messageId, type: type, durationSeconds: durationSeconds)
+          .then((_) {});
 
   Future<List<dynamic>> searchMembers(String query) async {
     final response = await _api.getFriends();

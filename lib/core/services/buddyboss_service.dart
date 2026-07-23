@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:k54_mobile/features/activity/models/comment_model.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
 import 'package:k54_mobile/features/activity/models/reaction_type.dart';
@@ -5,6 +9,16 @@ import 'package:k54_mobile/features/activity/models/user_reaction.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/core/services/api_service.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
+
+/// A single choice on a real xprofile selectbox/radio/gender field - see
+/// BuddyBossService.getFieldOptions's doc comment for why [value] can
+/// differ from [name].
+class XProfileFieldOption {
+  final String name;
+  final String value;
+
+  const XProfileFieldOption({required this.name, required this.value});
+}
 
 class BuddyBossService {
   final ApiService _api = ApiService.instance;
@@ -86,9 +100,24 @@ class BuddyBossService {
         "per_page": 1,
       },
     );
-    final List raw = response.data is List ? response.data : [];
-    if (raw.isEmpty) return null;
-    return UserReaction.fromJson(Map<String, dynamic>.from(raw.first));
+    // Confirmed live 2026-07-22: this endpoint returns a BARE OBJECT for
+    // this exact item_type+item_id+user_id+per_page=1 filter combination,
+    // not a single-element array - the previous `is List` check was
+    // always false here, so this silently returned null on every call,
+    // every time, regardless of whether a reaction actually existed. That
+    // made every "remove/replace my reaction" call skip its DELETE
+    // unconditionally (the real root cause of the reported "like doesn't
+    // respond" / "unlike doesn't stick" bug - not the id-casing issue
+    // fixed previously, which never even got a chance to run).
+    final data = response.data;
+    Map<String, dynamic>? raw;
+    if (data is List && data.isNotEmpty) {
+      raw = Map<String, dynamic>.from(data.first);
+    } else if (data is Map && data.isNotEmpty) {
+      raw = Map<String, dynamic>.from(data);
+    }
+    if (raw == null) return null;
+    return UserReaction.fromJson(raw);
   }
 
   /// Sets (or replaces) the current user's reaction on an item via the
@@ -103,7 +132,11 @@ class BuddyBossService {
     String itemType = "activity",
   }) async {
     final existing = await _getMyReaction(itemId: itemId, itemType: itemType);
-    if (existing != null) {
+    // A resolved id of 0 means the row's own id couldn't be parsed from the
+    // response (see UserReaction.fromJson) - deleting id 0 is a guaranteed
+    // 404, not a real attempt, so skip it rather than surface a doomed
+    // request as a user-facing error.
+    if (existing != null && existing.id != 0) {
       await _api.delete("/buddyboss/v1/user-reactions/${existing.id}");
     }
     final myId = await FriendsRepository.instance.currentUserId();
@@ -121,7 +154,7 @@ class BuddyBossService {
     String itemType = "activity",
   }) async {
     final existing = await _getMyReaction(itemId: itemId, itemType: itemType);
-    if (existing != null) {
+    if (existing != null && existing.id != 0) {
       await _api.delete("/buddyboss/v1/user-reactions/${existing.id}");
     }
   }
@@ -165,9 +198,8 @@ class BuddyBossService {
   return Post.fromBuddyBoss(response.data);
 }
 
-  /// Fetches comments for an activity post. Response schema wasn't
-  /// independently captured (unlike /favorite) — parses defensively via
-  /// [Comment.fromBuddyBoss], same discipline as the rest of this service.
+  /// Fetches comments for an activity post. Confirmed live 2026-07-23:
+  /// response is `{comment_count, level_comment_count, comments: [...]}`.
   Future<List<Comment>> getComments(String activityId, {int page = 1}) async {
     final response = await _api.get(
       "/buddyboss/v1/activity/$activityId/comment",
@@ -189,7 +221,13 @@ class BuddyBossService {
   /// Replies target the parent comment's own id as the endpoint's {id} -
   /// BuddyBoss's comment tree treats each comment as an activity item in
   /// its own right, so commenting "on" a comment nests it underneath.
-  /// Unconfirmed against a live response - same caveat as getComments.
+  ///
+  /// Confirmed live 2026-07-23: the response is wrapped
+  /// (`{"created": true, "comments": [{...the real comment...}]}`), not a
+  /// bare comment object - unwrapping `comments[0]` was the actual root
+  /// cause of a real reported bug (a freshly-posted comment showing the
+  /// author as "Unknown" - every field silently fell back to its default
+  /// because the outer wrapper was being parsed as the comment itself).
   Future<Comment> postComment({
     required String activityId,
     required String content,
@@ -201,7 +239,12 @@ class BuddyBossService {
       {"content": content},
     );
 
-    return Comment.fromBuddyBoss(Map<String, dynamic>.from(response.data));
+    final data = Map<String, dynamic>.from(response.data);
+    final commentsList = data['comments'];
+    final commentData = commentsList is List && commentsList.isNotEmpty
+        ? Map<String, dynamic>.from(commentsList.first)
+        : data;
+    return Comment.fromBuddyBoss(commentData);
   }
 
   /// Toggles a comment's like state via the same /favorite resource used
@@ -234,6 +277,15 @@ class BuddyBossService {
     );
     final totalHeader = response.headers.value("x-wp-total");
     return totalHeader != null ? int.tryParse(totalHeader) : null;
+  }
+
+  /// Fetches a single activity item by id - confirmed live 2026-07-20,
+  /// same object shape as a `getTimeline` list entry, just for one post.
+  /// Used to open a specific post (e.g. from a notification's `item_id`)
+  /// without already having the Post object in hand.
+  Future<Post> getActivity(String activityId) async {
+    final response = await _api.get("/buddyboss/v1/activity/$activityId");
+    return Post.fromBuddyBoss(Map<String, dynamic>.from(response.data));
   }
 
   Future<List<Post>> getTimeline({
@@ -280,6 +332,69 @@ class BuddyBossService {
   );
   return Post.fromBuddyBoss(response.data);
 }
+
+  /// Real photo-attach flow, confirmed live 2026-07-20 via a disposable
+  /// test post (created, photo attached, verified via bp_media_ids, then
+  /// fully cleaned up). Two real steps: (1) upload the raw file to get an
+  /// `upload_id`, (2) attach that upload to an existing activity via
+  /// `POST /media` with `{upload_ids, activity_id}`. Confirmed the
+  /// attached photo shows up in the post's own `bp_media_ids` field
+  /// afterward - exactly what `PostPhoto.fromJson` (post_model.dart)
+  /// already parses.
+  Future<int> uploadMedia(File file) async {
+    final formData = FormData.fromMap({
+      "file": await MultipartFile.fromFile(file.path, filename: file.path.split(Platform.pathSeparator).last),
+    });
+    final response = await _api.post("/buddyboss/v1/media/upload", formData);
+    return response.data["upload_id"] as int;
+  }
+
+  Future<void> attachMedia({required String activityId, required int uploadId}) {
+    return _api.post("/buddyboss/v1/media", {
+      "upload_ids": [uploadId],
+      "activity_id": int.tryParse(activityId) ?? activityId,
+    });
+  }
+
+  /// Same two-step shape as uploadMedia/attachMedia, targeting `/video`
+  /// instead - not independently live-tested (photo was the one tested
+  /// live), but built from the identical confirmed arg schema
+  /// (`upload_ids`/`activity_id`) from the live route index, same
+  /// confidence level as sendVoice's `/thread/{id}/upload` before it was
+  /// tested.
+  Future<int> uploadVideo(File file) async {
+    final formData = FormData.fromMap({
+      "file": await MultipartFile.fromFile(file.path, filename: file.path.split(Platform.pathSeparator).last),
+    });
+    final response = await _api.post("/buddyboss/v1/video/upload", formData);
+    return response.data["upload_id"] as int;
+  }
+
+  Future<void> attachVideo({required String activityId, required int uploadId}) {
+    return _api.post("/buddyboss/v1/video", {
+      "upload_ids": [uploadId],
+      "activity_id": int.tryParse(activityId) ?? activityId,
+    });
+  }
+
+  /// Same shape as media/video, but the attach call's array param is
+  /// named `document_ids` (confirmed from the route's own arg schema),
+  /// not `upload_ids` - a real, easy-to-miss inconsistency between the
+  /// three otherwise-identical endpoints.
+  Future<int> uploadDocument(File file) async {
+    final formData = FormData.fromMap({
+      "file": await MultipartFile.fromFile(file.path, filename: file.path.split(Platform.pathSeparator).last),
+    });
+    final response = await _api.post("/buddyboss/v1/document/upload", formData);
+    return response.data["upload_id"] as int;
+  }
+
+  Future<void> attachDocument({required String activityId, required int uploadId}) {
+    return _api.post("/buddyboss/v1/document", {
+      "document_ids": [uploadId],
+      "activity_id": int.tryParse(activityId) ?? activityId,
+    });
+  }
 
   /// Updates an existing post's content/privacy. Mirrors createPost's body
   /// fields since it's the same resource, just PUT to a specific id instead
@@ -389,6 +504,53 @@ class BuddyBossService {
       "/buddyboss/v1/xprofile/$fieldId/data/$userId",
       {"value": value},
     );
+  }
+
+  /// The "Social Media" field (id 13, type `socialnetworks`) is NOT a
+  /// plain string field - confirmed live 2026-07-20 via a real write test
+  /// (on this app's own test account, reverted after): sending `value` as
+  /// a JSON object/array crashes the server (`json_decode(): Argument #1
+  /// must be of type string, array given` - the PHP handler calls
+  /// `json_decode()` on whatever it receives, so it needs an already-
+  /// JSON-encoded STRING, not a nested object). The correct shape is
+  /// `{"value": "{\"facebook\":\"...\",\"linkedIn\":\"...\"}"}` - a JSON
+  /// string containing the network map, keyed by each option's own
+  /// `value` (not necessarily the display name - confirmed "linkedIn"
+  /// specifically, not "linkedin"). Empty entries are omitted rather than
+  /// sent as empty strings, so clearing a field removes it instead of
+  /// storing a blank URL.
+  Future<void> updateSocialNetworksField({
+    required String userId,
+    required int fieldId,
+    required Map<String, String> networks,
+  }) async {
+    final nonEmpty = Map.fromEntries(networks.entries.where((e) => e.value.trim().isNotEmpty));
+    await _api.put(
+      "/buddyboss/v1/xprofile/$fieldId/data/$userId",
+      {"value": jsonEncode(nonEmpty)},
+    );
+  }
+
+  /// Fetches a field's real, live-configured choices (selectbox/radio/
+  /// gender field types all carry an `options` array - confirmed live
+  /// 2026-07-20 against fields 5/18/31: each option has `name` (the
+  /// display label) and, for the `gender` field type specifically, also a
+  /// separate `value` (e.g. "his_Male" for "Male") that MUST be sent on
+  /// save instead of the name - sending the plain name for a gender field
+  /// fails with a real 500 (`rest_user_cannot_save_xprofile_data`,
+  /// confirmed via the same live test). For plain `selectbox` fields
+  /// (Professional Status/Field-Industry), there's no separate `value` -
+  /// the option's own `name` IS what gets saved.
+  Future<List<XProfileFieldOption>> getFieldOptions(int fieldId) async {
+    final response = await _api.get("/buddyboss/v1/xprofile/fields/$fieldId", query: {"context": "edit"});
+    final List raw = response.data["options"] is List ? response.data["options"] : const [];
+    return raw
+        .whereType<Map>()
+        .map((o) => XProfileFieldOption(
+              name: (o["name"] ?? "").toString(),
+              value: (o["value"] ?? o["name"] ?? "").toString(),
+            ))
+        .toList();
   }
 
 }

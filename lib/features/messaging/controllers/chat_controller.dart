@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'package:k54_mobile/features/messaging/models/chat_message_model.dart';
@@ -98,6 +99,105 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
     try {
       final sent = await _repo.sendReply(threadId: threadId, message: text.trim());
+      _appendMessages([sent]);
+      return true;
+    } catch (e) {
+      error = e.toString();
+      return false;
+    } finally {
+      sending = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Pulls this controller's `thread` back in sync with the repo's shared
+  /// cache after a mutation (pin/delete) - the repo mutates its own
+  /// `_threadsCache` copy, not this controller's separately-held
+  /// reference, so without this the change would only be visible after
+  /// the next full getThread() refetch.
+  void _syncFromCache() {
+    if (thread == null) return;
+    for (final cached in _repo.cachedThreads) {
+      if (cached.id == thread!.id) {
+        thread = cached;
+        break;
+      }
+    }
+  }
+
+  Future<void> pinMessage(String messageId) async {
+    try {
+      await _repo.pinMessage(threadId: threadId, messageId: messageId);
+      _syncFromCache();
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> unpinMessage(String messageId) async {
+    try {
+      await _repo.unpinMessage(threadId: threadId, messageId: messageId);
+      _syncFromCache();
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deleteMessage(String messageId) async {
+    try {
+      await _repo.deleteMessage(threadId: threadId, messageId: messageId);
+      _syncFromCache();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> forwardMessage(String messageId, List<String> toThreadIds) async {
+    try {
+      await _repo.forwardMessage(messageId: messageId, toThreadIds: toThreadIds);
+      return true;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> sendVoiceNote(File audioFile) async {
+    if (sending) return false;
+    sending = true;
+    notifyListeners();
+    try {
+      final sent = await _repo.sendVoiceNote(threadId: threadId, audioFile: audioFile);
+      _appendMessages([sent]);
+      return true;
+    } catch (e) {
+      error = e.toString();
+      return false;
+    } finally {
+      sending = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> sendFileMessage(File file) async {
+    if (sending) return false;
+    sending = true;
+    notifyListeners();
+    try {
+      final sent = await _repo.sendFileMessage(threadId: threadId, file: file);
       _appendMessages([sent]);
       return true;
     } catch (e) {

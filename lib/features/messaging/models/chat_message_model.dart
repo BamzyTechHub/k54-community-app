@@ -23,6 +23,22 @@ class ChatMessage {
   /// Per-message favorite/star, separate from any whole-thread star.
   final bool favorited;
 
+  /// Whether this is a voice note (sent via `sendVoice`, confirmed live
+  /// 2026-07-20 - see docs/api-audit/messaging-better-messages.md). The
+  /// raw message body is an HTML `<div class="bpbm-voice-message"
+  /// data-message="{audioUrl}">` wrapper with no real text, so it can't be
+  /// displayed via the normal stripHtml path - [voiceUrl] is the actual
+  /// playable audio URL (read from meta.files[0].url, a cleaner parse
+  /// target than the HTML attribute).
+  final bool isVoiceNote;
+  final String voiceUrl;
+
+  /// Whether this specific message is pinned (`thread/{id}/pinMessage`,
+  /// confirmed live 2026-07-20). Not present on the raw API response -
+  /// this is set/cleared client-side by ChatController after a successful
+  /// pin/unpin call, same optimistic-then-reconcile pattern used elsewhere.
+  final bool isPinned;
+
   /// Attached files (Better Messages' own dedicated media path, confirmed
   /// distinct from BuddyBoss's bp_media_ids). A files-only message uses the
   /// literal body "<!-- BM-ONLY-FILES -->" as a sentinel - callers should
@@ -43,7 +59,29 @@ class ChatMessage {
     this.reactions = const [],
     this.favorited = false,
     this.files = const [],
+    this.isVoiceNote = false,
+    this.voiceUrl = "",
+    this.isPinned = false,
   });
+
+  ChatMessage copyWith({bool? isPinned}) {
+    return ChatMessage(
+      id: id,
+      senderId: senderId,
+      senderName: senderName,
+      senderAvatar: senderAvatar,
+      message: message,
+      date: date,
+      isMe: isMe,
+      tempId: tempId,
+      reactions: reactions,
+      favorited: favorited,
+      files: files,
+      isVoiceNote: isVoiceNote,
+      voiceUrl: voiceUrl,
+      isPinned: isPinned ?? this.isPinned,
+    );
+  }
 
   factory ChatMessage.fromBetterMessages(
     Map<String, dynamic> json, {
@@ -59,8 +97,14 @@ class ChatMessage {
         .map((f) => ChatAttachment.fromJson(Map<String, dynamic>.from(f)))
         .toList();
 
-    var body = stripHtml(extractRendered(json['message']));
-    if (body == "<!-- BM-ONLY-FILES -->") body = "";
+    final rawMessage = extractRendered(json['message']);
+    final isVoiceNote = rawMessage.contains('bpbm-voice-message');
+    final voiceUrl = isVoiceNote
+        ? (files.isNotEmpty ? files.first.url : '')
+        : '';
+
+    var body = stripHtml(rawMessage);
+    if (body == "<!-- BM-ONLY-FILES -->" || isVoiceNote) body = "";
 
     return ChatMessage(
       id: (json['message_id'] ?? json['temp_id'] ?? '').toString(),
@@ -74,6 +118,8 @@ class ChatMessage {
       reactions: (meta['reactions'] as List?)?.map((r) => r.toString()).toList() ?? const [],
       favorited: json['favorited'] == 1 || json['favorited'] == true,
       files: files,
+      isVoiceNote: isVoiceNote,
+      voiceUrl: voiceUrl,
     );
   }
 }

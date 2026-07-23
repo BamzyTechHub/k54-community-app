@@ -11,11 +11,35 @@ class Member {
   final String? avatarUrl;
   final String? lastActive;
 
+  /// Real follow state - confirmed live 2026-07-21 on this same member
+  /// object shape (`is_following`/`can_follow`/`followers`/`following`),
+  /// same endpoint the follow/unfollow action itself updates.
+  final bool isFollowing;
+  final bool canFollow;
+  final int followerCount;
+  final int followingCount;
+
+  /// Real friendship state - same fields already confirmed and used on
+  /// the Profile page's Connect button. Four real values confirmed live
+  /// 2026-07-23: "is_friend"/"not_friends", plus a real, DISTINCT pair for
+  /// pending requests depending on direction - "pending" (you sent it) vs
+  /// "awaiting_response" (they sent it to you) - not the same string, so
+  /// callers must handle both rather than treating all pending requests
+  /// as outgoing.
+  final String friendshipStatus;
+  final String? friendshipId;
+
   Member({
     required this.id,
     required this.name,
     this.avatarUrl,
     this.lastActive,
+    this.isFollowing = false,
+    this.canFollow = false,
+    this.followerCount = 0,
+    this.followingCount = 0,
+    this.friendshipStatus = "not_friends",
+    this.friendshipId,
   });
 
   factory Member.fromBuddyBoss(Map<String, dynamic> json) {
@@ -24,6 +48,12 @@ class Member {
       name: (json['name'] ?? 'Unknown').toString(),
       avatarUrl: (json['avatar_urls']?['thumb'] ?? json['avatar_urls']?['full'])?.toString(),
       lastActive: json['last_activity']?.toString(),
+      isFollowing: json['is_following'] == true,
+      canFollow: json['can_follow'] == true,
+      followerCount: int.tryParse('${json['followers'] ?? 0}') ?? 0,
+      followingCount: int.tryParse('${json['following'] ?? 0}') ?? 0,
+      friendshipStatus: (json['friendship_status'] ?? 'not_friends').toString(),
+      friendshipId: json['friendship_id']?.toString(),
     );
   }
 }

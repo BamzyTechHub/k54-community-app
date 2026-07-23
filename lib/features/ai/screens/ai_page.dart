@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -6,9 +6,11 @@ import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/bottom_navigation.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/core/widgets/pressable_pill.dart';
+import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/features/ai/controllers/ai_chat_controller.dart';
 import 'package:k54_mobile/features/ai/models/ai_chat_message.dart';
-import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
+import 'package:k54_mobile/features/groups/screens/group_detail_page.dart';
+import 'package:k54_mobile/features/search/screens/search_results_page.dart';
 
 /// Matches the K54 Figma file's AI Assistant screen exactly (node
 /// 118:22, rendered 2026-07-08): header with search, a chat area, an
@@ -19,6 +21,12 @@ import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
 /// and `/k54-ai/v1/create-group` endpoints (see
 /// docs/api-audit/ai-assistant.md, sourced directly from the PHP
 /// backend, not inferred).
+///
+/// Group creation ("Create NGO Community" etc.) is a real, scripted
+/// in-chat Q&A now (name -> privacy -> description -> auto-create),
+/// not a popup form - the real backend has no conversational/function-
+/// calling awareness of group creation at all, so this sequencing is
+/// entirely client-side (see AiChatController's doc comment).
 class AiPage extends StatefulWidget {
   const AiPage({super.key});
 
@@ -71,38 +79,14 @@ class _AiPageState extends State<AiPage> {
     await _controller.send(text);
   }
 
-  Future<void> _startGroupCreation(String defaultName) async {
-    final details = await showCreateGroupDialog(context, initialName: defaultName);
-    if (details == null || !mounted) return;
-
-    final result = await _controller.createGroup(
-      groupName: details.name,
-      description: details.description,
-      privacy: details.privacy,
-    );
-
-    if (!mounted) return;
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't create group: ${_controller.error}")),
-      );
-      return;
-    }
-    if (result["success"] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["message"] ?? "Group created successfully.")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["message"] ?? "Group creation failed.")),
-      );
-    }
+  void _openGroup(String groupId) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailPage(groupId: groupId)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -119,22 +103,35 @@ class _AiPageState extends State<AiPage> {
                     style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
-                  Container(
-                    width: 140,
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    // #FCF8ED - same systemic fix as K54SearchField (was
-                    // the stale tan/gold groupCardBackground).
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFCF8ED),
-                      borderRadius: BorderRadius.circular(9999),
+                  // Was purely decorative (no onTap at all) - now real,
+                  // matching how every other screen's search pill/icon
+                  // behaves (Home, Messages, Groups, Members).
+                  TapScale(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SearchResultsPage()),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, size: 16, color: AppColors.jetBlack),
-                        const SizedBox(width: 6),
-                        Text("Search", style: GoogleFonts.lato(fontSize: 12, color: AppColors.jetBlack)),
-                      ],
+                    borderRadius: BorderRadius.circular(9999),
+                    child: Container(
+                      // Was 140x32 - noticeably smaller than every other
+                      // screen's search affordance in the app (flagged
+                      // directly: "the search bar looks very tiny").
+                      width: 170,
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      // #FCF8ED - same systemic fix as K54SearchField (was
+                      // the stale tan/gold groupCardBackground).
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFCF8ED),
+                        borderRadius: BorderRadius.circular(9999),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.search, size: 18, color: AppColors.jetBlack),
+                          const SizedBox(width: 8),
+                          Text("Search", style: GoogleFonts.lato(fontSize: 14, color: AppColors.jetBlack)),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -144,7 +141,7 @@ class _AiPageState extends State<AiPage> {
                 Text(
                   "Chat with K54 AI to get help navigating the platform, courses, and community.",
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade700),
+                  style: GoogleFonts.lato(fontSize: 14, color: AppColors.greyShade700),
                 ),
               const SizedBox(height: 12),
               Expanded(child: _buildChatArea()),
@@ -196,8 +193,16 @@ class _AiPageState extends State<AiPage> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.groupCardBackground,
-          borderRadius: BorderRadius.circular(16),
+          // Same received-bubble color as chat_page.dart (Messages) -
+          // was a different, inconsistent groupCardBackground shade
+          // before, so the two "chat with someone" screens in this app
+          // didn't visually read as the same pattern.
+          color: const Color(0xFFFCF8ED),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -205,12 +210,12 @@ class _AiPageState extends State<AiPage> {
             const SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
             ),
             const SizedBox(width: 10),
             Text(
               "K54 AI is thinking - this can take up to a minute...",
-              style: GoogleFonts.lato(fontSize: 13, color: Colors.grey.shade700),
+              style: GoogleFonts.lato(fontSize: 13, color: AppColors.greyShade700),
             ),
           ],
         ),
@@ -227,12 +232,19 @@ class _AiPageState extends State<AiPage> {
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
           decoration: BoxDecoration(
-            gradient: AppColors.brandGradient,
-            borderRadius: BorderRadius.circular(16),
+            // Matches chat_page.dart's real "sent" bubble exactly (same
+            // color + same asymmetric corner shape) instead of a brand
+            // gradient no other chat-style screen in the app uses.
+            color: const Color(0xFFB4D69E),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(18),
+              topRight: Radius.circular(18),
+              bottomLeft: Radius.circular(18),
+            ),
           ),
           child: Text(
             message.content,
-            style: GoogleFonts.lato(color: Colors.white, fontSize: 14),
+            style: GoogleFonts.lato(color: AppColors.white, fontSize: 14),
           ),
         ),
       );
@@ -245,36 +257,74 @@ class _AiPageState extends State<AiPage> {
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
         decoration: BoxDecoration(
-          color: AppColors.groupCardBackground,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: MarkdownBody(
-          data: message.content,
-          selectable: true,
-          styleSheet: MarkdownStyleSheet(
-            p: GoogleFonts.lato(fontSize: 14, color: AppColors.jetBlack),
-            h1: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold),
-            h2: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold),
-            h3: GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.bold),
-            blockquoteDecoration: BoxDecoration(
-              color: Colors.white,
-              border: const Border(left: BorderSide(color: AppColors.green, width: 3)),
-            ),
-            a: const TextStyle(color: AppColors.green, decoration: TextDecoration.underline),
+          color: const Color(0xFFFCF8ED),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(18),
           ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MarkdownBody(
+              data: message.content,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: GoogleFonts.lato(fontSize: 14, color: AppColors.jetBlack),
+                h1: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold),
+                h2: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold),
+                h3: GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.bold),
+                blockquoteDecoration: BoxDecoration(
+                  color: AppColors.white,
+                  border: const Border(left: BorderSide(color: AppColors.green, width: 3)),
+                ),
+                a: const TextStyle(color: AppColors.green, decoration: TextDecoration.underline),
+              ),
+            ),
+            // Real "View Group" action - only present on the one scripted
+            // confirmation message that follows a successful in-chat
+            // group creation (see AiChatMessage.createdGroupId's doc
+            // comment).
+            if (message.createdGroupId != null) ...[
+              const SizedBox(height: 8),
+              TapScale(
+                onTap: () => _openGroup(message.createdGroupId!),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(color: AppColors.green, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.groups, size: 16, color: AppColors.white),
+                      SizedBox(width: 6),
+                      Text("View Group", style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 
   Widget _buildInputBar() {
+    // Same shape/press-feedback pattern as chat_page.dart's input bar
+    // (Messages) - the attach icon and the send button were plain
+    // IconButtons with no press animation at all, the one static-feeling
+    // part of an otherwise animated screen.
     return Container(
+      height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 15),
       // Exact colors from the AI ASSISTANT Figma frame (node 118:22,
       // "Typing" input bar), pulled via the REST API 2026-07-16 - was a
       // muted gray-green pair before this measurement existed.
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFFB4D69E)),
       ),
@@ -285,23 +335,41 @@ class _AiPageState extends State<AiPage> {
               controller: _inputController,
               textCapitalization: TextCapitalization.sentences,
               onSubmitted: (_) => _send(),
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 hintText: "Ask K54 AI Anything...",
                 border: InputBorder.none,
+                focusedBorder: InputBorder.none,
               ),
             ),
           ),
-          IconButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+          TapScale(
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text("Attachments are coming soon")),
             ),
-            icon: const Icon(Icons.attach_file, color: Colors.grey),
+            borderRadius: BorderRadius.circular(12),
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.attach_file, color: AppColors.grey),
+            ),
           ),
-          IconButton(
-            onPressed: _controller.sending ? null : () => _send(),
-            icon: _controller.sending
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.send, color: AppColors.lightGreen),
+          const SizedBox(width: 4),
+          TapScale(
+            onTap: (_controller.sending || _inputController.text.trim().isEmpty) ? null : () => _send(),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
+              child: Center(
+                child: _controller.sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
+                      )
+                    : const Icon(Icons.send, color: AppColors.white, size: 18),
+              ),
+            ),
           ),
         ],
       ),
@@ -316,9 +384,9 @@ class _AiPageState extends State<AiPage> {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          Expanded(child: PressablePill(label: leftLabel, onTap: onLeftTap, height: 42)),
+          Expanded(child: PressablePill(label: leftLabel, onTap: onLeftTap, height: 42, fontSize: 11)),
           const SizedBox(width: 10),
-          Expanded(child: PressablePill(label: rightLabel, onTap: onRightTap, height: 42)),
+          Expanded(child: PressablePill(label: rightLabel, onTap: onRightTap, height: 42, fontSize: 11)),
         ],
       ),
     );
@@ -329,14 +397,14 @@ class _AiPageState extends State<AiPage> {
       children: [
         _pillPairRow(
           "Create First Course", () => _send("Help me create my first course"),
-          "Create NGO Community", () => _startGroupCreation("NGO Community"),
+          "Create NGO Community", () => _controller.startGroupCreation(type: "NGO"),
         ),
         _pillPairRow(
-          "Create Church Group", () => _startGroupCreation("Church Group"),
-          "Start Study Group", () => _startGroupCreation("Study Group"),
+          "Create Church Group", () => _controller.startGroupCreation(type: "Church"),
+          "Start Study Group", () => _controller.startGroupCreation(type: "Study Group"),
         ),
         const SizedBox(height: 6),
-        Text("Quick Searches", style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade700)),
+        Text("Quick Searches", style: GoogleFonts.lato(fontSize: 14, color: AppColors.greyShade700)),
         const SizedBox(height: 10),
         _pillPairRow(
           "Grow My Business", () => _send("Help me grow my business"),

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 class ProfileStats extends StatelessWidget {
   final int followers;
@@ -52,20 +53,25 @@ class ProfileStats extends StatelessWidget {
   ) {
     return Column(
       children: [
+        // Brand green, not black - direct tester feedback that the
+        // numbers themselves should be green too, not just the labels.
         Text(
           value,
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
+            color: AppColors.green,
           ),
         ),
 
         const SizedBox(height: 4),
 
+        // Brand green, not grey - flagged directly in tester feedback.
         Text(
           label,
           style: const TextStyle(
-            color: Colors.grey,
+            color: AppColors.green,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

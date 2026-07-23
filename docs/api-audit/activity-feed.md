@@ -40,7 +40,14 @@ Every `attachment_data`/`*_thumb` field is a static JPEG poster frame. **RESOLVE
 
 **`bp_documents`** - same object shape, `type: "document"`, real fields include `filename`, `extension`, `size` (human string like "413 KB"), `svg_icon` (an inline SVG icon string for the file type), `msg_preview` (an HTML snippet), and `attachment_data.full`/`thumb` (a preview image of the document, not the document file itself - the actual file is fetched via `download_url`).
 
-**Implication for `Post` model / `post_card.dart`:** none of these three fields are parsed today. A post with a photo/video/document attached currently shows nothing for it unless it happens to also be set as the `feature_media` (the two are confirmed separate mechanisms). Real, buildable now for photos and documents (direct URLs exist); video needs the `url` resolution question answered first before promising inline playback.
+**Implication for `Post` model / `post_card.dart`:** ~~none of these three fields are parsed today~~ **RESOLVED 2026-07-19/20** - `Post.fromBuddyBoss` now parses all three (`photos`/`videos`/`documents`), rendered in `post_card.dart` (grid+viewer for photos, lazy inline player for video, download tile for documents).
+
+**Write-side (attaching new media to a NEW post) - CONFIRMED live 2026-07-20**, disposable test post created/attached/verified/deleted on this app's own account. Two-step flow, separate real endpoints per media type:
+```
+POST /buddyboss/v1/media/upload      (multipart, field "file")  -> {"upload_id": <int>, ...}
+POST /buddyboss/v1/media             {"upload_ids": [<id>], "activity_id": <postId>}
+```
+Confirmed this actually populates the post's own `bp_media_ids` afterward (re-fetched the activity and verified). Video and document follow the identical shape at `/video/upload`+`/video` and `/document/upload`+`/document` - **document's create call uses `document_ids`, not `upload_ids`**, a real inconsistency between the three otherwise-identical endpoints (confirmed from the route index's own arg schema, not live-tested for video/document specifically - same confidence tier as sendVoice before it was tested). Now wired: `create_post_page.dart` sends real photos and videos this way; the "Photo not supported yet" dialog that previously discarded a picked image before publishing is gone. Generic document attach isn't wired into the Create Post UI yet (no file_picker package).
 
 ## ⚠️ Correction to a prior document
 

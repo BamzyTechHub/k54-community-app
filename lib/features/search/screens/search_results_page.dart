@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -68,7 +68,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -78,16 +78,19 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               Row(
                 children: [
                   GestureDetector(
+                    // Was a 24x24 tap target - noticeably small and hard to
+                    // hit reliably, direct tester feedback ("makes it
+                    // difficult to tap").
                     onTap: () => Navigator.pop(context),
                     child: Container(
-                      width: 24,
-                      height: 24,
+                      width: 36,
+                      height: 36,
                       alignment: Alignment.center,
                       decoration: const BoxDecoration(
                         color: AppColors.iconButtonBackground,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.arrow_back, size: 16, color: AppColors.jetBlack),
+                      child: const Icon(Icons.arrow_back, size: 18, color: AppColors.jetBlack),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -113,7 +116,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   Widget _buildBody() {
     if (!_searched) {
       return Center(
-        child: Text("Search for people, courses and pages", style: GoogleFonts.lato(color: Colors.grey.shade600)),
+        child: Text("Search for people, courses and pages", style: GoogleFonts.lato(color: AppColors.greyShade600)),
       );
     }
     if (_loading) {
@@ -132,7 +135,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       );
     }
     if (_results.isEmpty) {
-      return Center(child: Text("No results for \"${_controller.text}\"", style: GoogleFonts.lato(color: Colors.grey.shade600)));
+      return Center(child: Text("No results for \"${_controller.text}\"", style: GoogleFonts.lato(color: AppColors.greyShade600)));
     }
 
     return ListView.separated(
@@ -147,7 +150,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             child: Icon(_iconFor(r), color: AppColors.green, size: 20),
           ),
           title: Text(r.title, style: GoogleFonts.lato(fontWeight: FontWeight.w700, fontSize: 15)),
-          subtitle: Text(r.subtype.isEmpty ? r.type : r.subtype, style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey)),
+          subtitle: Text(r.subtype.isEmpty ? r.type : r.subtype, style: GoogleFonts.poppins(fontSize: 11, color: AppColors.grey)),
           onTap: () {
             final uri = Uri.tryParse(r.url);
             if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);

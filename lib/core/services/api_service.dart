@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
@@ -68,7 +71,7 @@ class ApiService {
         }
         return handler.next(response);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
         final start = error.requestOptions.extra["k54_startTime"] as DateTime?;
         final elapsed = start != null ? DateTime.now().difference(start).inMilliseconds : null;
         print("========== API ERROR ==========");
@@ -83,6 +86,33 @@ class ApiService {
         } else {
           print("No response was received at all - failed before/during connect, send, or receive (see DioExceptionType above for which stage).");
         }
+
+        // A genuine connectionTimeout (TCP/TLS never completed - as
+        // opposed to a badResponse, which means a server/CDN response DID
+        // come back) is the exact signature of an IPv6 route black-holing
+        // on some networks: the AAAA record resolves, Dart's HttpClient
+        // tries it, and the packets just vanish for the full timeout
+        // instead of failing fast. A previous blanket "force IPv4 always"
+        // fix solved this for one tester but broke login for two others
+        // (changing every connection's fingerprint tripped Hostinger's
+        // bot protection) - retrying ONLY after a real timeout, on a
+        // separate IPv4-only client, keeps every normally-succeeding
+        // connection completely untouched while still recovering from
+        // this specific black-hole case. Guarded by an extra flag so this
+        // can only fire once per request, never loop.
+        if (error.type == DioExceptionType.connectionTimeout &&
+            error.requestOptions.extra["k54_ipv4Retried"] != true) {
+          print("Connection timed out - retrying once over IPv4 only, in case this network's IPv6 route to the server is black-holed.");
+          error.requestOptions.extra["k54_ipv4Retried"] = true;
+          try {
+            final response = await _ipv4OnlyDio.fetch(error.requestOptions);
+            print("IPv4-only retry succeeded.");
+            return handler.resolve(response);
+          } catch (retryError) {
+            print("IPv4-only retry also failed: $retryError");
+          }
+        }
+
         return handler.next(error);
       },
     ),
@@ -112,6 +142,29 @@ class ApiService {
       },
     ),
   );
+
+  /// Used only as a one-shot retry target after [dio] itself hits a real
+  /// connectionTimeout (see the onError interceptor above) - never used
+  /// for a normal first attempt, so every connection that already
+  /// succeeds today is completely unaffected by this. Forces IPv4 at the
+  /// socket level (skips AAAA/IPv6 resolution entirely) to route around
+  /// an IPv6 black-hole on the current network.
+  late final Dio _ipv4OnlyDio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {"Accept": "application/json"},
+    ),
+  )..httpClientAdapter = (IOHttpClientAdapter()
+      ..createHttpClient = () {
+        final client = HttpClient();
+        client.connectionFactory = (uri, proxyHost, proxyPort) async {
+          final addresses = await InternetAddress.lookup(uri.host, type: InternetAddressType.IPv4);
+          return Socket.startConnect(addresses.first, uri.port);
+        };
+        return client;
+      });
 
   
 

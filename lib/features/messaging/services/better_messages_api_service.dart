@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:k54_mobile/core/services/api_service.dart';
 
@@ -29,6 +30,11 @@ class BetterMessagesApiService {
   /// Polls for anything new since [lastUpdate] (server-time, same scale as
   /// the response envelope's own `currentTime`/`serverTime` fields - not a
   /// standard epoch, see MessageThread's timestamp parsing note).
+  ///
+  /// [threadIds]/[visibleThreads] sent as ints, not strings - confirmed
+  /// from a real captured browser request (HAR 2026-07-21:
+  /// `{"threadIds":[16,23,28,...]}`), the previous string-encoded version
+  /// was an unconfirmed guess.
   Future<Response> checkNew({
     required int lastUpdate,
     required List<String> threadIds,
@@ -36,8 +42,8 @@ class BetterMessagesApiService {
   }) {
     return _api.post("/better-messages/v1/checkNew", {
       "lastUpdate": lastUpdate,
-      "visibleThreads": visibleThreads,
-      "threadIds": threadIds,
+      "visibleThreads": visibleThreads.map((id) => int.tryParse(id) ?? id).toList(),
+      "threadIds": threadIds.map((id) => int.tryParse(id) ?? id).toList(),
     });
   }
 
@@ -70,6 +76,31 @@ class BetterMessagesApiService {
     });
   }
 
+  /// Sends a generic file/image attachment (as opposed to a voice note -
+  /// see sendVoice) to a message. Confirmed live 2026-07-20 via a
+  /// disposable-message test (sent, verified real `meta.files` came back
+  /// with the real image, then deleted): the body needs BOTH the
+  /// `<!-- BM-ONLY-FILES -->` sentinel as `message` (same one confirmed
+  /// present on real file-only messages in the schema doc, see
+  /// docs/api-audit/messaging-better-messages.md) AND `files: [id]` -
+  /// tried `attachment_id`/`attachments`/`attachment_ids` first, none of
+  /// those actually attached anything despite not erroring, only `files`
+  /// did. Same two-step flow as sendVoice: [uploadAttachment] first to
+  /// get the id.
+  Future<Response> sendFile({
+    required String threadId,
+    required int attachmentId,
+    required String tempId,
+    required int tempTime,
+  }) {
+    return _api.post("/better-messages/v1/thread/$threadId/send", {
+      "message": "<!-- BM-ONLY-FILES -->",
+      "files": [attachmentId],
+      "temp_id": tempId,
+      "temp_time": tempTime,
+    });
+  }
+
   /// Confirmed response: bare boolean `true`.
   Future<Response> pinThread(String threadId) {
     return _api.post("/better-messages/v1/thread/$threadId/makePinned", {});
@@ -90,6 +121,13 @@ class BetterMessagesApiService {
     return _api.get("/better-messages/v1/getFriends");
   }
 
+  /// Maps this account's groups to their own group-wide message thread -
+  /// confirmed live 2026-07-22: `[{group_id, name, messages, thread_id,
+  /// image, url}]`. Every group with "Group Messages" enabled (a real
+  /// per-group Manage > Settings toggle - all members auto-join this one
+  /// thread) has a `thread_id` here; this is how a group's own "Messages"
+  /// tab is real-mapped to an actual Better Messages thread rather than a
+  /// 1-on-1 conversation.
   Future<Response> getGroups() {
     return _api.get("/better-messages/v1/getGroups");
   }
@@ -127,11 +165,142 @@ class BetterMessagesApiService {
     });
   }
 
+  /// `user_id` sent as an int, not a string - confirmed from a real
+  /// captured browser request (`{"user_id":123}`, HAR 2026-07-21) - the
+  /// previous string-encoded version was an unconfirmed guess.
   Future<Response> blockUser(String userId) {
-    return _api.post("/better-messages/v1/blockUser", {"user_id": userId});
+    return _api.post("/better-messages/v1/blockUser", {"user_id": int.tryParse(userId) ?? userId});
   }
 
   Future<Response> unblockUser(String userId) {
-    return _api.post("/better-messages/v1/unblockUser", {"user_id": userId});
+    return _api.post("/better-messages/v1/unblockUser", {"user_id": int.tryParse(userId) ?? userId});
+  }
+
+  /// Confirmed live 2026-07-20 via a disposable-message test (see
+  /// docs/api-audit/messaging-better-messages.md): body key MUST be
+  /// camelCase `messageId` - `message_id`/snake_case returns a misleading
+  /// `403 rest_forbidden "Message not found"` instead of a validation error.
+  Future<Response> pinMessage({required String threadId, required String messageId}) {
+    return _api.post("/better-messages/v1/thread/$threadId/pinMessage", {
+      "messageId": int.tryParse(messageId) ?? messageId,
+    });
+  }
+
+  Future<Response> unpinMessage({required String threadId, required String messageId}) {
+    return _api.post("/better-messages/v1/thread/$threadId/unpinMessage", {
+      "messageId": int.tryParse(messageId) ?? messageId,
+    });
+  }
+
+  /// Confirmed live 2026-07-20: body key MUST be camelCase plural
+  /// `messageIds` - singular/snake_case variants either 403 or crash the
+  /// server with an uncaught PHP TypeError (see doc above), never send
+  /// those shapes.
+  Future<Response> deleteMessages({required String threadId, required List<String> messageIds}) {
+    return _api.post("/better-messages/v1/thread/$threadId/deleteMessages", {
+      "messageIds": messageIds.map((id) => int.tryParse(id) ?? id).toList(),
+    });
+  }
+
+  /// Confirmed live 2026-07-20: body `{"thread_ids": [...]}` (snake_case,
+  /// unlike the message-level actions above), response
+  /// `{"result": true, "sent": {"<threadId>": <newMessageId>}, "errors": []}`.
+  Future<Response> forwardMessage({required String messageId, required List<String> threadIds}) {
+    return _api.post("/better-messages/v1/message/$messageId/forward", {
+      "thread_ids": threadIds.map((id) => int.tryParse(id) ?? id).toList(),
+    });
+  }
+
+  /// Voice notes are a two-step flow, confirmed live 2026-07-20: upload the
+  /// audio file first (multipart field name `file`), which returns an
+  /// attachment id, then send that id via [sendVoice]. There is no direct
+  /// "attach audio to a message" single-call endpoint.
+  Future<Response> uploadAttachment({required String threadId, required File file}) {
+    final formData = FormData.fromMap({
+      "file": MultipartFile.fromFileSync(file.path, filename: file.path.split(Platform.pathSeparator).last),
+    });
+    return _api.post("/better-messages/v1/thread/$threadId/upload", formData);
+  }
+
+  Future<Response> sendVoice({
+    required String threadId,
+    required int attachmentId,
+    required String tempId,
+    required int tempTime,
+  }) {
+    return _api.post("/better-messages/v1/thread/$threadId/sendVoice", {
+      "attachment_id": attachmentId,
+      "temp_id": tempId,
+      "temp_time": tempTime,
+    });
+  }
+
+  /// Starts a call - confirmed live 2026-07-21 (real disposable
+  /// test-and-immediately-callMissed call against this account's own
+  /// thread 72): response is
+  /// `{result, message_id, thread_id, user_ids, token, encryption_key}`.
+  /// `token` is a LiveKit JWT (decodes to `video.room` =
+  /// "room_{site}_{thread_id}_{message_id}", `roomConfig.maxParticipants:
+  /// 2` - 1-on-1 only, no group calls) for the real-time media
+  /// connection to `video-cloud.better-messages.com` (see
+  /// docs/api-audit for the full decoded shape). `result` was "allowed"
+  /// in the confirmed test - other values (e.g. a decline/blocked case)
+  /// are not confirmed.
+  Future<Response> callCreate({required String threadId, required String type}) {
+    return _api.post("/better-messages/v1/callCreate", {
+      "thread_id": int.tryParse(threadId) ?? threadId,
+      "type": type,
+    });
+  }
+
+  /// Marks a call as actually connected (both sides joined the LiveKit
+  /// room) - confirmed real endpoint + body shape via HAR capture
+  /// 2026-07-21, response not captured.
+  Future<Response> callStarted({
+    required String threadId,
+    required String messageId,
+    required String type,
+  }) {
+    return _api.post("/better-messages/v1/callStarted", {
+      "thread_id": int.tryParse(threadId) ?? threadId,
+      "message_id": int.tryParse(messageId) ?? messageId,
+      "type": type,
+    });
+  }
+
+  /// Periodic heartbeat while a call is active - confirmed real endpoint
+  /// + body shape via HAR capture 2026-07-21 (the real site sends this
+  /// roughly every 8-13s during a live call).
+  Future<Response> callUsage({
+    required String threadId,
+    required String messageId,
+    required int durationSeconds,
+    required int bytesSent,
+    required int bytesReceived,
+  }) {
+    return _api.post("/better-messages/v1/callUsage", {
+      "thread_id": int.tryParse(threadId) ?? threadId,
+      "message_id": int.tryParse(messageId) ?? messageId,
+      "duration": durationSeconds,
+      "stats": {"bytes_sent": bytesSent, "bytes_received": bytesReceived},
+    });
+  }
+
+  /// Ends a call that was never answered/connected, or hangs up a
+  /// pending outgoing call - confirmed real endpoint + body shape live
+  /// 2026-07-21 (real disposable test call, immediately ended this way),
+  /// confirmed response: bare boolean `true`.
+  Future<Response> callMissed({
+    required String threadId,
+    required String messageId,
+    required String type,
+    required int durationSeconds,
+  }) {
+    return _api.post("/better-messages/v1/callMissed", {
+      "thread_id": int.tryParse(threadId) ?? threadId,
+      "message_id": int.tryParse(messageId) ?? messageId,
+      "type": type,
+      "duration": durationSeconds,
+    });
   }
 }

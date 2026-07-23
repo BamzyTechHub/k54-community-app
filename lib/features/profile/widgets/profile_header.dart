@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/user_avatar.dart';
@@ -46,7 +46,7 @@ class ProfileHeader extends StatelessWidget {
           Text(
             userTitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.lato(fontSize: 13, color: Colors.grey.shade600),
+            style: GoogleFonts.lato(fontSize: 13, color: AppColors.greyShade600),
           ),
         ],
         const SizedBox(height: 16),

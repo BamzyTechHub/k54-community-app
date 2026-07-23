@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 
-/// The "Create a Group" form - previously two separately hand-written
-/// copies (Groups' own "Create a Group" tab, and the AI Assistant's
-/// "Create NGO Community"/"Create Church Group"/"Start Study Group"
-/// quick actions), same fields, same privacy options, retyped twice.
-/// Returns the entered details, or null if cancelled - callers own what
-/// happens next (which repository/endpoint actually creates the group).
+/// The "Create a Group" form, used by GroupsPage's own "Create a Group"
+/// tab. The AI Assistant's "Create NGO Community"/"Create Church Group"/
+/// "Start Study Group" quick actions used to share this same dialog, but
+/// now use a real scripted in-chat Q&A instead (see AiChatController) -
+/// not this popup. Returns the entered details, or null if cancelled -
+/// callers own what happens next (which repository/endpoint actually
+/// creates the group).
 Future<({String name, String description, String privacy})?> showCreateGroupDialog(
   BuildContext context, {
   String initialName = "",
@@ -45,8 +47,17 @@ Future<({String name, String description, String privacy})?> showCreateGroupDial
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("Create")),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel", style: TextStyle(color: AppColors.greyShade600)),
+          ),
+          // Explicit brand green, not Flutter's default Material
+          // primary - flagged directly by a tester ("current colors
+          // aren't brand colors").
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Create", style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w700)),
+          ),
         ],
       ),
     ),

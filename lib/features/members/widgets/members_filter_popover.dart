@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 
 import 'package:k54_mobile/core/widgets/filter_popover.dart';
 
-/// The filter popover from the Members Figma screenshot (two stacked
-/// cards: "Search filter" and "Members view filter"), anchored below the
-/// header's filter icon via [layerLink] - built on the shared
+/// The filter popover from the Members Figma screenshot, anchored below
+/// the header's filter icon via [layerLink] - built on the shared
 /// [showFilterPopover].
 ///
-/// "Members view filter" is real, working functionality - it drives the
-/// same confirmed `type` sort param (active/newest/alphabetical) the
-/// toolbar's own sort dropdown already uses via [onSortSelected].
+/// Search-only now - the "Members view filter" section (Recently
+/// Active/Newest/Alphabetical) was dropped per direct tester feedback:
+/// it was a straight duplicate of the toolbar's own "Recently Active"
+/// sort dropdown, and the funnel icon next to the search bar should only
+/// control search, not the member-view sort. [onSortSelected] is kept as
+/// a param so callers don't need changing, but nothing in this popover
+/// calls it anymore.
 ///
 /// "Search filter" (Field/Industry, Professional Status, User Name, Last
 /// (Sur)Name) is shown exactly as designed but not wired to a live
@@ -27,11 +30,6 @@ void showMembersFilterPopover({
   required void Function(String sortKey) onSortSelected,
   required void Function(String fieldLabel) onSearchFilterTapped,
 }) {
-  const sortOptions = {
-    "active": "Recently Active",
-    "newest": "Newest Members",
-    "alphabetical": "Alphabetical",
-  };
   const searchFilterLabels = ["Field / Industry", "Professional Status", "User Name", "Last (Sur)Name"];
 
   showFilterPopover(
@@ -45,16 +43,6 @@ void showMembersFilterPopover({
                   label: label,
                   selected: false,
                   onTap: () => onSearchFilterTapped(label),
-                ))
-            .toList(),
-      ),
-      FilterSection(
-        label: "Members view filter",
-        options: sortOptions.entries
-            .map((e) => FilterOption(
-                  label: e.value,
-                  selected: currentSort == e.key,
-                  onTap: () => onSortSelected(e.key),
                 ))
             .toList(),
       ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -46,7 +46,7 @@ class _ProfileMenuState extends State<ProfileMenu> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => entry.remove(),
-              child: Container(color: Colors.black.withValues(alpha: 0.35)),
+              child: Container(color: AppColors.black.withValues(alpha: 0.35)),
             ),
           ),
           CompositedTransformFollower(
@@ -56,10 +56,10 @@ class _ProfileMenuState extends State<ProfileMenu> {
             followerAnchor: Alignment.topRight,
             offset: const Offset(0, 8),
             child: Material(
-              color: Colors.white,
+              color: AppColors.white,
               borderRadius: BorderRadius.circular(12),
               elevation: 6,
-              shadowColor: Colors.black.withValues(alpha: 0.3),
+              shadowColor: AppColors.black.withValues(alpha: 0.3),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Column(
@@ -75,7 +75,7 @@ class _ProfileMenuState extends State<ProfileMenu> {
                       child: Container(
                         width: 200,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        color: selected ? const Color(0xFFE8EFE8) : Colors.transparent,
+                        color: selected ? const Color(0xFFE8EFE8) : AppColors.transparent,
                         child: Text(
                           label,
                           style: GoogleFonts.poppins(

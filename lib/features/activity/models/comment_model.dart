@@ -1,9 +1,10 @@
 /// A comment on an activity post. BuddyBoss represents comments as activity
 /// sub-items internally, so this mirrors [Post.fromBuddyBoss]'s parsing
-/// approach — the exact response shape for the comment endpoints hasn't
-/// been independently captured, so field access defensively falls back
-/// across the field names BuddyBoss has used for the equivalent concept
-/// on the main activity object, which *is* confirmed.
+/// approach. Response shape confirmed live 2026-07-23 via a disposable
+/// test comment - both the list and create endpoints return the same
+/// shape as a real activity item (`name`, `content.rendered`,
+/// `content_stripped`, `user_avatar`, etc.), wrapped in
+/// `{comment_count, level_comment_count, comments: [...]}`.
 class Comment {
   final String id;
   final String userId;
@@ -30,14 +31,21 @@ class Comment {
   }) : replies = replies ?? [];
 
   factory Comment.fromBuddyBoss(Map<String, dynamic> json) {
-    String content = '';
-    final rawContent = json['content'];
-    if (rawContent is Map) {
-      content = (rawContent['rendered'] ?? '').toString();
-    } else if (rawContent is String) {
-      content = rawContent;
+    // `content_stripped` is confirmed live 2026-07-23 to already be real,
+    // decoded plain text (actual emoji characters, not the HTML numeric
+    // character references `content.rendered` uses, e.g. `&#x1f600;`) -
+    // preferred over manually stripping tags from `content.rendered`,
+    // which left those entity codes showing as literal text in the UI.
+    String content = (json['content_stripped'] ?? '').toString();
+    if (content.isEmpty) {
+      final rawContent = json['content'];
+      if (rawContent is Map) {
+        content = (rawContent['rendered'] ?? '').toString();
+      } else if (rawContent is String) {
+        content = rawContent;
+      }
+      content = content.replaceAll(RegExp(r'<[^>]*>'), '').trim();
     }
-    content = content.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
     String avatar = '';
     final avatarUrls = json['avatar_urls'] ?? json['user_avatar'];

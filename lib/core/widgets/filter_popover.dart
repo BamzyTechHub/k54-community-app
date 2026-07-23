@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -40,7 +40,7 @@ void showFilterPopover({
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
         child: Text(
           text,
-          style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(fontSize: 11, color: AppColors.greyShade600, fontWeight: FontWeight.w600),
         ),
       );
 
@@ -53,7 +53,7 @@ void showFilterPopover({
       child: Container(
         width: 220,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        color: option.selected ? const Color(0xFFE8EFE8) : Colors.transparent,
+        color: option.selected ? const Color(0xFFE8EFE8) : AppColors.transparent,
         child: Text(
           option.label,
           style: GoogleFonts.poppins(
@@ -67,10 +67,10 @@ void showFilterPopover({
   }
 
   Widget card(FilterSection section) => Material(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         elevation: 6,
-        shadowColor: Colors.black.withValues(alpha: 0.2),
+        shadowColor: AppColors.black.withValues(alpha: 0.2),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Column(

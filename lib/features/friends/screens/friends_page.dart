@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -161,7 +161,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
     final pendingCount = _requestsController.incoming.length;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -199,8 +199,14 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
               TabBar(
                 controller: _tabController,
                 labelColor: AppColors.green,
-                unselectedLabelColor: Colors.grey,
+                unselectedLabelColor: AppColors.grey,
                 indicatorColor: AppColors.green,
+                // Material 3's TabBar draws a full-width divider line by
+                // default - not present on any other tab strip in this
+                // app (which all use the custom UnderlineTabRow instead),
+                // so it read as a stray black line here. Direct tester
+                // feedback ("not on the original design").
+                dividerColor: AppColors.transparent,
                 tabs: [
                   const Tab(text: "Friends"),
                   Tab(text: pendingCount > 0 ? "Requests ($pendingCount)" : "Requests"),
@@ -341,7 +347,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Remove", style: TextStyle(color: Colors.red)),
+            child: const Text("Remove", style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -400,7 +406,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                     ),
                     TextButton(
                       onPressed: () => _reject(f),
-                      child: const Text("Reject", style: TextStyle(color: Colors.red)),
+                      child: const Text("Reject", style: TextStyle(color: AppColors.error)),
                     ),
                   ],
                 )),
@@ -414,7 +420,7 @@ class _FriendsPageState extends State<FriendsPage> with SingleTickerProviderStat
                   actions: [
                     TextButton(
                       onPressed: () => _cancel(f),
-                      child: const Text("Cancel", style: TextStyle(color: Colors.red)),
+                      child: const Text("Cancel", style: TextStyle(color: AppColors.error)),
                     ),
                   ],
                 )),

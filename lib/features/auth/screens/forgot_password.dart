@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -41,7 +41,7 @@ class _ForgotPasswordState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       // No generic Material AppBar - the Forgot Password Figma frame
       // uses the same "logo + big centered heading" header as every
       // other screen in this auth flow (Login/Sign Up/Touch ID/Face ID),

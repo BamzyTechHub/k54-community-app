@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -22,11 +22,11 @@ class InlineErrorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFCF8ED),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: AppColors.errorLight),
       ),
       child: Text(
         message,
-        style: GoogleFonts.lato(color: Colors.red.shade700, fontSize: 13, fontWeight: FontWeight.w600),
+        style: GoogleFonts.lato(color: AppColors.errorDark, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -53,7 +53,7 @@ class InlineSuccessCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-            child: const Icon(Icons.check, color: Colors.white, size: 24),
+            child: const Icon(Icons.check, color: AppColors.white, size: 24),
           ),
           const SizedBox(height: 12),
           Text(

@@ -70,8 +70,17 @@ class FriendsApiService {
     return _api.delete("/buddyboss/v1/friends/$friendshipId");
   }
 
+  /// Confirmed live 2026-07-24: BuddyBoss's own `DELETE
+  /// /buddyboss/v1/friends/{id}` reliably 500s specifically for an
+  /// already-CONFIRMED friendship (a real bug in their REST controller,
+  /// not BuddyPress core - the underlying `friends_remove_friend()`
+  /// function works perfectly when called directly, which is exactly
+  /// what this custom bridge route does, matching the real website's own
+  /// behavior confirmed via an earlier HAR capture: the site's own UI
+  /// also avoids this REST endpoint for remove and calls the same legacy
+  /// function). See docs/api-audit/k54-friends-remove-debug.php.
   Future<Response> removeFriend(String friendshipId) {
-    return _api.delete("/buddyboss/v1/friends/$friendshipId");
+    return _api.post("/k54-friends/v1/remove", {"friendship_id": friendshipId});
   }
 
   Future<Response> cancelOutgoingRequest(String friendshipId) {

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// Wraps any widget with the "press down slightly, spring back" feedback
 /// that makes LinkedIn/Facebook/Instagram-style cards feel alive - most
@@ -46,7 +47,7 @@ class _TapScaleState extends State<TapScale> {
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeOut,
         child: Material(
-          color: Colors.transparent,
+          color: AppColors.transparent,
           borderRadius: widget.borderRadius,
           child: InkWell(
             onTap: widget.onTap,

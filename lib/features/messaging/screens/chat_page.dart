@@ -1,14 +1,22 @@
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemSound, SystemSoundType, HapticFeedback;
+import 'package:flutter/services.dart' show SystemSound, SystemSoundType, HapticFeedback, Clipboard, ClipboardData;
+import 'package:audioplayers/audioplayers.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
+import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/core/widgets/user_avatar.dart';
+import 'package:k54_mobile/features/messaging/calling/call_screen.dart';
 import 'package:k54_mobile/features/messaging/controllers/chat_controller.dart';
 import 'package:k54_mobile/features/messaging/models/chat_message_model.dart';
 import 'package:k54_mobile/features/messaging/models/message_thread_model.dart';
+import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
 import 'package:k54_mobile/features/messaging/widgets/emoji_picker_sheet.dart';
 
 class ChatPage extends StatefulWidget {
@@ -25,6 +33,9 @@ class _ChatPageState extends State<ChatPage> {
   late final ChatController _controller;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _recording = false;
 
   @override
   void initState() {
@@ -92,14 +103,91 @@ class _ChatPageState extends State<ChatPage> {
     _controller.dispose(); // cancels the polling timer
     _messageController.dispose();
     _scrollController.dispose();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  /// Voice notes are a real, confirmed two-step flow (upload the file,
+  /// then reference the returned attachment id via sendVoice - see
+  /// ChatController.sendVoiceNote's doc comment), not a "coming soon"
+  /// stub. Recording itself is a genuine mic capture via the `record`
+  /// package, not a fake progress bar.
+  Future<void> _startRecording() async {
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Microphone permission is needed to record a voice message")),
+        );
+      }
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final path = "${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a";
+    await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+    HapticFeedback.mediumImpact();
+    setState(() => _recording = true);
+  }
+
+  Future<void> _stopRecordingAndSend() async {
+    if (!_recording) return;
+    final path = await _recorder.stop();
+    setState(() => _recording = false);
+    if (path == null) return;
+
+    final file = File(path);
+    // A press that was too short to be a real voice note (accidental tap)
+    // - don't send a near-silent fraction-of-a-second clip.
+    if (!await file.exists() || await file.length() < 500) {
+      return;
+    }
+
+    final ok = await _controller.sendVoiceNote(file);
+    if (ok) {
+      SystemSound.play(SystemSoundType.click);
+      HapticFeedback.lightImpact();
+      _scrollToBottom();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to send voice message: ${_controller.error}")),
+      );
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    if (!_recording) return;
+    await _recorder.cancel();
+    setState(() => _recording = false);
+  }
+
+  /// Real image attach, confirmed live 2026-07-20 via a disposable-
+  /// message test (see ChatController.sendFileMessage's doc comment) -
+  /// upload then reference via `send`'s `files` param. Only images are
+  /// wired (via image_picker, already a dependency) - arbitrary documents
+  /// would need a separate file_picker package addition, out of scope for
+  /// this pass.
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source);
+    if (picked == null) return;
+
+    final ok = await _controller.sendFileMessage(File(picked.path));
+    if (ok) {
+      SystemSound.play(SystemSoundType.click);
+      HapticFeedback.lightImpact();
+      _scrollToBottom();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to send image: ${_controller.error}")),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final thread = _controller.thread;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -136,7 +224,7 @@ class _ChatPageState extends State<ChatPage> {
                     imageUrl: thread?.otherUserAvatar,
                     name: thread?.otherUserName ?? "",
                     radius: 22,
-                    isOnline: thread?.otherUserOnline,
+                    isOnline: thread != null && !thread.isGroupThread ? thread.otherUserOnline : null,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -149,14 +237,20 @@ class _ChatPageState extends State<ChatPage> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        // Real presence, not decorative - see
-                        // MessageThread.otherUserOnline's doc comment.
+                        // Real presence for a 1-on-1 thread - see
+                        // MessageThread.otherUserOnline's doc comment. A
+                        // group thread has no single "online" person, so
+                        // this shows the real participant count instead
+                        // (confirmed live 2026-07-22, `type: "group"`
+                        // threads carry a real `participantsCount`).
                         if (thread != null)
                           Text(
-                            thread.otherUserOnline ? "Online" : "Offline",
+                            thread.isGroupThread ? "${thread.participantCount} participants" : (thread.otherUserOnline ? "Online" : "Offline"),
                             style: TextStyle(
                               fontSize: 12,
-                              color: thread.otherUserOnline ? AppColors.green : Colors.grey,
+                              color: thread.isGroupThread
+                                  ? AppColors.greyShade600
+                                  : (thread.otherUserOnline ? AppColors.green : AppColors.grey),
                             ),
                           ),
                       ],
@@ -171,14 +265,35 @@ class _ChatPageState extends State<ChatPage> {
             icon: const Icon(Icons.search, size: 22),
           ),
           IconButton(
-            onPressed: () => _comingSoon("Video call"),
+            onPressed: thread == null ? null : () => _startCall(thread, isVideo: true),
             icon: const Icon(Icons.video_call_outlined, size: 22),
           ),
           IconButton(
-            onPressed: () => _comingSoon("Voice call"),
+            onPressed: thread == null ? null : () => _startCall(thread, isVideo: false),
             icon: const Icon(Icons.call_outlined, size: 22),
           ),
         ],
+      ),
+    );
+  }
+
+  // Real call - wired 2026-07-22 against the confirmed Better
+  // Messages callCreate/LiveKit flow (see CallController's doc comment).
+  // Only reaches whoever's on the other end while they're actually
+  // looking at this thread right now - there's no push-notification or
+  // background-signaling layer in this app yet, so a genuine "ringing"
+  // experience for the callee isn't there. Real for the caller's side
+  // end-to-end either way.
+  void _startCall(MessageThread thread, {required bool isVideo}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          threadId: thread.id,
+          otherUserName: thread.otherUserName,
+          otherUserAvatar: thread.otherUserAvatar,
+          isVideo: isVideo,
+        ),
       ),
     );
   }
@@ -243,70 +358,231 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildBubble(ChatMessage message) {
     return Align(
       alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            decoration: BoxDecoration(
-              // Exact bubble colors from the Chat Figma frame (node
-              // 61:2448), pulled via the REST API 2026-07-16 - was
-              // groupCardAccent/groupCardBackground (a darker green/tan
-              // pair) before this measurement existed. Both old colors
-              // were dark enough to read as visually similar at a glance,
-              // which may be what was reported as "no difference between
-              // sender and receiver."
-              color: message.isMe ? const Color(0xFFB4D69E) : const Color(0xFFFCF8ED),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(message.isMe ? 18 : 0),
-                bottomRight: Radius.circular(message.isMe ? 0 : 18),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (message.hasAttachment) _buildAttachments(message),
-                if (message.message.isNotEmpty) ...[
-                  if (message.hasAttachment) const SizedBox(height: 8),
-                  Text(
-                    message.message,
-                    style: TextStyle(
-                      color: message.isMe ? Colors.white : Colors.black,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 5),
-                Row(
+      child: GestureDetector(
+        onLongPress: () => _openMessageMenu(message),
+        child: Column(
+          crossAxisAlignment: message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (message.isPinned)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (message.favorited) ...[
-                      Icon(
-                        Icons.star,
-                        size: 13,
-                        color: message.isMe ? Colors.white70 : Colors.amber.shade700,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      "${message.date.hour.toString().padLeft(2, '0')}:${message.date.minute.toString().padLeft(2, '0')}",
-                      style: TextStyle(
-                        color: message.isMe ? Colors.white70 : Colors.grey,
-                        fontSize: 11,
-                      ),
-                    ),
+                    Icon(Icons.push_pin, size: 11, color: AppColors.greyShade600),
+                    const SizedBox(width: 3),
+                    Text("Pinned", style: TextStyle(fontSize: 11, color: AppColors.greyShade600)),
                   ],
                 ),
-              ],
+              ),
+            Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+              decoration: BoxDecoration(
+                // Exact bubble colors from the Chat Figma frame (node
+                // 61:2448), pulled via the REST API 2026-07-16 - was
+                // groupCardAccent/groupCardBackground (a darker green/tan
+                // pair) before this measurement existed. Both old colors
+                // were dark enough to read as visually similar at a glance,
+                // which may be what was reported as "no difference between
+                // sender and receiver."
+                color: message.isMe ? const Color(0xFFB4D69E) : const Color(0xFFFCF8ED),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(message.isMe ? 18 : 0),
+                  bottomRight: Radius.circular(message.isMe ? 0 : 18),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (message.isVoiceNote)
+                    _VoiceMessageBubble(url: message.voiceUrl, isMe: message.isMe)
+                  else ...[
+                    if (message.hasAttachment) _buildAttachments(message),
+                    if (message.message.isNotEmpty) ...[
+                      if (message.hasAttachment) const SizedBox(height: 8),
+                      Text(
+                        message.message,
+                        style: TextStyle(
+                          color: message.isMe ? AppColors.white : AppColors.black,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 5),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.favorited) ...[
+                        Icon(
+                          Icons.star,
+                          size: 13,
+                          color: message.isMe ? AppColors.white70 : AppColors.amber,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        "${message.date.hour.toString().padLeft(2, '0')}:${message.date.minute.toString().padLeft(2, '0')}",
+                        style: TextStyle(
+                          color: message.isMe ? AppColors.white70 : AppColors.grey,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (message.reactions.isNotEmpty) _buildReactions(message),
-        ],
+            if (message.reactions.isNotEmpty) _buildReactions(message),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _openMessageMenu(ChatMessage message) async {
+    final canCopy = !message.isVoiceNote && message.message.isNotEmpty;
+    final action = await showK54BottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canCopy)
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text("Copy text"),
+                onTap: () => Navigator.pop(sheetContext, "copy"),
+              ),
+            ListTile(
+              leading: const Icon(Icons.forward_outlined),
+              title: const Text("Forward"),
+              onTap: () => Navigator.pop(sheetContext, "forward"),
+            ),
+            ListTile(
+              leading: Icon(message.isPinned ? Icons.push_pin_outlined : Icons.push_pin),
+              title: Text(message.isPinned ? "Unpin message" : "Pin message"),
+              onTap: () => Navigator.pop(sheetContext, "pin"),
+            ),
+            if (message.isMe)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                title: const Text("Delete message", style: TextStyle(color: AppColors.error)),
+                onTap: () => Navigator.pop(sheetContext, "delete"),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    switch (action) {
+      case "copy":
+        Clipboard.setData(ClipboardData(text: message.message));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Copied")));
+        break;
+      case "forward":
+        await _forwardMessage(message);
+        break;
+      case "pin":
+        if (message.isPinned) {
+          await _controller.unpinMessage(message.id);
+        } else {
+          await _controller.pinMessage(message.id);
+        }
+        break;
+      case "delete":
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            shape: K54Dialog.shape,
+            title: const Text("Delete message"),
+            content: const Text("This can't be undone. Delete this message?"),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text("Delete", style: TextStyle(color: AppColors.error)),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          final ok = await _controller.deleteMessage(message.id);
+          if (!ok && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't delete message: ${_controller.error}")),
+            );
+          }
+        }
+        break;
+    }
+  }
+
+  Future<void> _forwardMessage(ChatMessage message) async {
+    // Every other thread this user has, so they can pick where to forward
+    // to - loaded from the repo's inbox cache (already populated by the
+    // time a chat is open; refreshed here in case it's stale/empty).
+    var threads = MessagingRepository.instance.cachedThreads;
+    if (threads.isEmpty) {
+      try {
+        threads = await MessagingRepository.instance.refreshThreads();
+      } catch (_) {
+        threads = const [];
+      }
+    }
+    final otherThreads = threads.where((t) => t.id != widget.threadId).toList();
+
+    if (!mounted) return;
+    if (otherThreads.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No other conversations to forward to")),
+      );
+      return;
+    }
+
+    final target = await showK54BottomSheet<MessageThread>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(15),
+                child: Text("Forward to...", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: otherThreads.length,
+                  itemBuilder: (context, index) {
+                    final t = otherThreads[index];
+                    return ListTile(
+                      leading: UserAvatar(imageUrl: t.otherUserAvatar, name: t.otherUserName, radius: 18),
+                      title: Text(t.otherUserName),
+                      onTap: () => Navigator.pop(sheetContext, t),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (target == null || !mounted) return;
+    final ok = await _controller.forwardMessage(message.id, [target.id]);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? "Forwarded to ${target.otherUserName}" : "Couldn't forward: ${_controller.error}")),
     );
   }
 
@@ -332,14 +608,14 @@ class _ChatPageState extends State<ChatPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.white24,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.insert_drive_file,
-                    size: 16, color: message.isMe ? Colors.white : Colors.black87),
+                    size: 16, color: message.isMe ? AppColors.white : AppColors.black87),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
@@ -347,7 +623,7 @@ class _ChatPageState extends State<ChatPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      color: message.isMe ? Colors.white : Colors.black87,
+                      color: message.isMe ? AppColors.white : AppColors.black87,
                     ),
                   ),
                 ),
@@ -365,9 +641,9 @@ class _ChatPageState extends State<ChatPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: AppColors.greyShade300),
         ),
         child: Text(
           message.reactions.join(" "),
@@ -378,10 +654,45 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildInputBar() {
+    if (_recording) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+        ),
+        child: Row(
+          children: [
+            TapScale(
+              onTap: _cancelRecording,
+              borderRadius: BorderRadius.circular(20),
+              child: const Icon(Icons.delete_outline, color: AppColors.error),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.mic, color: AppColors.green, size: 20),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text("Recording voice message...", style: TextStyle(color: AppColors.grey)),
+            ),
+            TapScale(
+              onTap: _stopRecordingAndSend,
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
+                child: const Icon(Icons.send, color: AppColors.white, size: 20),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
       ),
       child: Row(
@@ -391,7 +702,7 @@ class _ChatPageState extends State<ChatPage> {
               height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.white,
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(color: AppColors.groupCardAccent.withValues(alpha: 0.5)),
               ),
@@ -400,7 +711,7 @@ class _ChatPageState extends State<ChatPage> {
                   TapScale(
                     onTap: _openEmojiPicker,
                     borderRadius: BorderRadius.circular(12),
-                    child: Icon(Icons.emoji_emotions_outlined, size: 20, color: Colors.grey.shade600),
+                    child: Icon(Icons.emoji_emotions_outlined, size: 20, color: AppColors.greyShade600),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -412,45 +723,39 @@ class _ChatPageState extends State<ChatPage> {
                       decoration: const InputDecoration(
                         hintText: "Message",
                         border: InputBorder.none,
+                        focusedBorder: InputBorder.none,
                         isDense: true,
                       ),
                     ),
                   ),
-                  // Deliberately still "coming soon", not wired to a local
-                  // image_picker/file_picker call - Better Messages does
-                  // have real upload endpoints (`thread/{id}/upload`,
-                  // `thread/{id}/attachments`, confirmed to exist in
-                  // docs/api-audit/messaging-better-messages.md), but their
-                  // exact multipart request shape was never captured. A
-                  // local-only pick that can't actually reach the send
-                  // endpoint would show the photo on this device and
-                  // nothing on the other end - guessing at the multipart
-                  // body risks exactly that silent one-sided failure.
-                  // Worth a HAR capture of a real upload from the website
-                  // to unlock this for real.
+                  // Real image attach, confirmed live 2026-07-20 (see
+                  // _pickAndSendImage's doc comment) - the exact multipart
+                  // shape (`thread/{id}/upload` field `file`, then `send`
+                  // with `files: [id]`) was found via a disposable-message
+                  // test. Arbitrary non-image files still aren't wired -
+                  // that needs a file_picker package addition.
                   TapScale(
-                    onTap: () => _comingSoon("Attaching a file"),
+                    onTap: () => _pickAndSendImage(ImageSource.gallery),
                     borderRadius: BorderRadius.circular(12),
-                    child: Icon(Icons.attach_file, size: 20, color: Colors.grey.shade600),
+                    child: Icon(Icons.attach_file, size: 20, color: AppColors.greyShade600),
                   ),
                   const SizedBox(width: 6),
                   TapScale(
-                    onTap: () => _comingSoon("Camera"),
+                    onTap: () => _pickAndSendImage(ImageSource.camera),
                     borderRadius: BorderRadius.circular(12),
-                    child: Icon(Icons.camera_alt_outlined, size: 20, color: Colors.grey.shade600),
+                    child: Icon(Icons.camera_alt_outlined, size: 20, color: AppColors.greyShade600),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(width: 8),
-          TapScale(
-            onTap: _controller.sending
-                ? null
-                : (_messageController.text.trim().isEmpty
-                    ? () => _comingSoon("Voice messages")
-                    : _send),
-            borderRadius: BorderRadius.circular(24),
+          GestureDetector(
+            onLongPressStart: _messageController.text.trim().isEmpty && !_controller.sending
+                ? (_) => _startRecording()
+                : null,
+            onLongPressEnd: _messageController.text.trim().isEmpty ? (_) => _stopRecordingAndSend() : null,
+            onTap: _controller.sending || _messageController.text.trim().isEmpty ? null : _send,
             child: Container(
               width: 42,
               height: 42,
@@ -463,13 +768,118 @@ class _ChatPageState extends State<ChatPage> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white))
                     : Icon(
                         _messageController.text.trim().isEmpty ? Icons.mic : Icons.send,
-                        color: Colors.white,
+                        color: AppColors.white,
                         size: 20,
                       ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Plays a real voice-note attachment (`sendVoice`, confirmed live
+/// 2026-07-20 - see ChatMessage.isVoiceNote's doc comment). Lazily creates
+/// its own AudioPlayer only when tapped, same "don't eagerly open a
+/// network stream for every bubble in the list" discipline used for the
+/// feed's inline video player.
+class _VoiceMessageBubble extends StatefulWidget {
+  final String url;
+  final bool isMe;
+
+  const _VoiceMessageBubble({required this.url, required this.isMe});
+
+  @override
+  State<_VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
+}
+
+class _VoiceMessageBubbleState extends State<_VoiceMessageBubble> {
+  final AudioPlayer _player = AudioPlayer();
+  PlayerState _state = PlayerState.stopped;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _state = s);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _position = Duration.zero);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (widget.url.isEmpty) return;
+    if (_state == PlayerState.playing) {
+      await _player.pause();
+    } else {
+      await _player.play(UrlSource(widget.url));
+    }
+  }
+
+  String _format(Duration d) {
+    final m = d.inMinutes.toString().padLeft(1, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return "$m:$s";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isMe ? AppColors.white : AppColors.jetBlack;
+    final progress = _duration.inMilliseconds > 0 ? _position.inMilliseconds / _duration.inMilliseconds : 0.0;
+
+    return SizedBox(
+      width: 180,
+      child: Row(
+        children: [
+          TapScale(
+            onTap: _toggle,
+            child: Icon(
+              _state == PlayerState.playing ? Icons.pause_circle_filled : Icons.play_circle_fill,
+              color: color,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    minHeight: 3,
+                    backgroundColor: color.withValues(alpha: 0.25),
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _format(_duration.inMilliseconds > 0 ? _duration : _position),
+                  style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 11),
+                ),
+              ],
             ),
           ),
         ],

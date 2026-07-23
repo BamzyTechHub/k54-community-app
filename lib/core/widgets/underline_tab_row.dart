@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -42,23 +42,35 @@ class UnderlineTabRow extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isSelected ? AppColors.green : Colors.transparent,
+                    color: isSelected ? AppColors.green : AppColors.transparent,
                     width: 2,
                   ),
                 ),
               ),
-              child: Text(
-                tabs[index],
-                // Was always jetBlack regardless of selection - only the
-                // underline changed color. A real device screenshot
-                // (2026-07-18) shows the active tab's text itself in
-                // green/bold too, inactive tabs in a muted grey.
-                style: GoogleFonts.poppins(
-                  fontSize: fontSize,
-                  color: isSelected ? AppColors.green : Colors.grey.shade500,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
+              child: isSelected
+                  ? ShaderMask(
+                      // The active tab's label uses the brand gradient
+                      // (not a flat green) - flagged directly in tester
+                      // feedback for the Members/Groups tab rows, the
+                      // underline itself stays solid green either way.
+                      shaderCallback: (bounds) => AppColors.brandGradient.createShader(bounds),
+                      child: Text(
+                        tabs[index],
+                        style: GoogleFonts.poppins(
+                          fontSize: fontSize,
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      tabs[index],
+                      style: GoogleFonts.poppins(
+                        fontSize: fontSize,
+                        color: AppColors.greyShade500,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
             ),
           ),
         );

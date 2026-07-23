@@ -41,7 +41,18 @@ class TimelinePageState extends State<TimelinePage> {
   @override
   void didUpdateWidget(covariant TimelinePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _loadTimeline();
+    // Only reload when the profile being viewed actually changes - this
+    // widget is held behind a stable GlobalKey (see HomePage), so
+    // didUpdateWidget still fires on every unrelated parent rebuild even
+    // though nothing about this widget's own props changed. Reloading
+    // unconditionally threw away the optimistic prependPost() insert
+    // (replaced _posts with a fresh page-1 fetch) every time that
+    // happened, which is what made a just-created post flicker/disappear
+    // and, combined with the pagination offset shifting underneath a
+    // still-in-flight loadMore, made a post appear to show up twice.
+    if (oldWidget.userId != widget.userId) {
+      _loadTimeline();
+    }
   }
 
   @override
@@ -83,7 +94,14 @@ class TimelinePageState extends State<TimelinePage> {
           _hasMore = false;
         } else {
           _page += 1;
-          _posts = [..._posts, ...next];
+          // De-duped by id - a new post created between page loads shifts
+          // BuddyBoss's offset-based pagination by one, so the post at the
+          // old page boundary can come back again in the next page's
+          // results. Without this, that post rendered twice in the feed
+          // (reported live: "a test post appeared twice on the homepage").
+          final existingIds = _posts.map((p) => p.id).toSet();
+          final deduped = next.where((p) => !existingIds.contains(p.id));
+          _posts = [..._posts, ...deduped];
         }
         _loadingMore = false;
       });
@@ -104,6 +122,22 @@ class TimelinePageState extends State<TimelinePage> {
 
   Future<void> refreshTimeline() async {
     await _refresh();
+  }
+
+  /// Inserts a freshly-created post at the top of the feed instantly,
+  /// using the real Post object the create call already returned -
+  /// deliberately NOT a re-fetch. A fresh post can take a noticeable
+  /// while to show up in a subsequent `GET /buddyboss/v1/activity`
+  /// response (server/CDN-side propagation delay, not a client bug), so
+  /// waiting on a refetch to confirm "it worked" is exactly what made
+  /// posting feel slow/uncertain - this shows the real result the
+  /// moment the server confirms it, the same way Facebook's own feed
+  /// inserts your post locally rather than waiting on its next feed
+  /// fetch to notice it.
+  void prependPost(Post post) {
+    setState(() {
+      _posts = [post, ..._posts];
+    });
   }
 
   @override

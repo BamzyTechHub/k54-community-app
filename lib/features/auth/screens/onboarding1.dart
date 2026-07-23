@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/auth/screens/onboarding4.dart';
 
 class Onboarding1 extends StatelessWidget {
@@ -7,7 +8,7 @@ class Onboarding1 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
         child: Padding(
@@ -62,17 +63,15 @@ class Onboarding1 extends StatelessWidget {
                         width: 28,
                         height: 8,
 
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           borderRadius:
-                              BorderRadius.circular(10),
-
-                          gradient:
-                              const LinearGradient(
-                            colors: [
-                              Color(0xFF008000),
-                              Color(0xFFAB8000),
-                            ],
-                          ),
+                              BorderRadius.all(Radius.circular(10)),
+                          // Solid brand green, not the old green-to-gold
+                          // gradient - matches the button below it and
+                          // every other brand accent app-wide (flagged by
+                          // tester feedback: onboarding colors weren't
+                          // consistent with the rest of the app).
+                          color: AppColors.green,
                         ),
                       ),
 
@@ -106,11 +105,10 @@ class Onboarding1 extends StatelessWidget {
     width: 60,
     height: 60,
 
-    decoration: BoxDecoration(
+    decoration: const BoxDecoration(
       shape: BoxShape.circle,
-      border: Border.all(
-        color: const Color(0xFF578C77),
-        width: 3,
+      border: Border.fromBorderSide(
+        BorderSide(color: AppColors.green, width: 3),
       ),
     ),
 
@@ -119,20 +117,17 @@ class Onboarding1 extends StatelessWidget {
         width: 42,
         height: 42,
 
+        // Solid brand green, not the old green-to-gold gradient - matches
+        // the app's real button color language (PrimaryButton, indicator
+        // above) instead of a one-off treatment unique to this screen.
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
-
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF008000),
-              Color(0xFFAB8000),
-            ],
-          ),
+          color: AppColors.green,
         ),
 
         child: const Icon(
           Icons.arrow_forward_ios,
-          color: Colors.white,
+          color: AppColors.white,
           size: 18,
         ),
       ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:k54_mobile/features/profile/screens/settings_page.dart';
 import 'package:k54_mobile/features/profile/screens/email_invites_page.dart';
@@ -9,7 +9,7 @@ import 'package:k54_mobile/features/profile/widgets/profile_tabs.dart';
 import 'package:k54_mobile/features/profile/widgets/profile_placeholder_tabs.dart';
 import 'package:k54_mobile/features/activity/screens/timeline_page.dart';
 import 'package:k54_mobile/features/groups/screens/groups_page.dart';
-import 'package:k54_mobile/features/live_video/screens/go_live_page.dart';
+import 'package:k54_mobile/features/live_video/widgets/profile_live_video_tab.dart';
 import 'package:k54_mobile/features/friends/models/friendship_model.dart';
 import 'package:k54_mobile/features/friends/repositories/friends_repository.dart';
 import 'package:k54_mobile/features/messaging/repositories/messaging_repository.dart';
@@ -46,6 +46,9 @@ String userImage = "";
 int followers = 0;
 int following = 0;
 int posts = 0;
+bool isFollowingProfile = false;
+String friendshipStatus = "not_friends";
+String? friendshipId;
 
 // The sliding tab-window state - see ProfileTabs' doc comment for the
 // full model. Starts on the base 3; picking a hidden tab from "..."
@@ -131,6 +134,33 @@ void _comingSoon(String feature) {
   );
 }
 
+Future<void> _removeConnection(Friendship f) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      shape: K54Dialog.shape,
+      title: const Text("Remove connection"),
+      content: Text("Remove ${f.otherUserName}? You'll need to send a new request to reconnect."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text("Remove", style: TextStyle(color: AppColors.error)),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  try {
+    await FriendsRepository.instance.removeFriend(f.id);
+    if (!mounted) return;
+    setState(() => _connections.removeWhere((c) => c.id == f.id));
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't remove connection: $e")));
+  }
+}
+
 Future<void> _blockMember(String id, String name) async {
   final confirmed = await showDialog<bool>(
     context: context,
@@ -142,7 +172,7 @@ Future<void> _blockMember(String id, String name) async {
         TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("Cancel")),
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text("Block", style: TextStyle(color: Colors.red)),
+          child: const Text("Block", style: TextStyle(color: AppColors.error)),
         ),
       ],
     ),
@@ -200,9 +230,18 @@ Widget _buildConnectionsTab() {
         id: f.otherUserId,
         name: f.otherUserName,
         avatarUrl: f.otherUserAvatar,
+        // Everyone in this list is, by definition, an already-confirmed
+        // friend - drives the connect icon showing "Remove Connection"
+        // (matching the real site's own card) instead of the default
+        // "Connect" icon.
+        friendshipStatus: "is_friend",
         onTap: () => _openProfile(f.otherUserId),
         onBlock: () => _blockMember(f.otherUserId, f.otherUserName),
-        onConnect: () => _comingSoon("Connect"),
+        // These are already-established connections (this tab lists real
+        // friendships, not suggestions), so "Connect" here offers to undo
+        // it rather than being a dead "coming soon" stub - direct tester
+        // feedback ("the connect button isn't working yet").
+        onConnect: () => _removeConnection(f),
         onMessage: () => _openMessage(f.otherUserId),
         onCall: () => _comingSoon("Voice call"),
         onVideoCall: () => _comingSoon("Video call"),
@@ -218,34 +257,6 @@ Widget _buildConnectionsTab() {
 /// height fixes both.
 double _embeddedTabHeight(BuildContext context) {
   return (MediaQuery.sizeOf(context).height * 0.75).clamp(500, 1400);
-}
-
-Widget _liveVideoTab(BuildContext context) {
-  return Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(25),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF5EFD9),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Column(
-      children: [
-        const Text(
-          "No live videos yet",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        TextButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GoLivePage()),
-          ),
-          icon: const Icon(Icons.videocam_outlined, color: AppColors.green),
-          label: const Text("Go Live", style: TextStyle(color: AppColors.green)),
-        ),
-      ],
-    ),
-  );
 }
 
 Future loadUserData() async {
@@ -267,6 +278,9 @@ Future loadUserData() async {
       "K54 Community Member";
   followers = user["followers"] ?? 0;
   following = user["following"] ?? 0;
+  isFollowingProfile = user["is_following"] == true;
+  friendshipStatus = (user["friendship_status"] ?? "not_friends").toString();
+  friendshipId = user["friendship_id"]?.toString();
 });
     // Separate call, not a field on the member response - see
     // BuddyBossService.getUserPostCount's doc comment for why
@@ -305,7 +319,7 @@ Future loadUserData() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       // Not one of the 5 tracked bottom-nav destinations, so no icon
       // claims "active" - an out-of-range index keeps every icon in its
       // plain inactive state rather than falsely highlighting one.
@@ -349,7 +363,7 @@ Future loadUserData() async {
                     // page top.
                     Text(
                       _activeTab,
-                      style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.lato(fontSize: 14, color: AppColors.greyShade600, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -369,6 +383,10 @@ ProfileStats(
 ProfileActions(
   isCurrentUser: widget.userId == null,
   otherUserId: widget.userId,
+  isFollowing: isFollowingProfile,
+  onFollowChanged: (value) => setState(() => isFollowingProfile = value),
+  friendshipStatus: friendshipStatus,
+  friendshipId: friendshipId,
 ),
 const SizedBox(height: 20),
 ProfileTabs(
@@ -386,14 +404,14 @@ if (_activeTab == "Timeline")
 ),
   ),
 if (_activeTab == "My Connections") _buildConnectionsTab(),
-if (_activeTab == "live Video") _liveVideoTab(context),
+if (_activeTab == "live Video") ProfileLiveVideoTab(userId: widget.userId),
 if (_activeTab == "Groups")
   SizedBox(
     height: _embeddedTabHeight(context),
     child: GroupsPage(embedded: true),
   ),
 if (_activeTab == "Messages") const MessagesInboxList(),
-if (_activeTab == "Courses") const ProfileCoursesTab(),
+if (_activeTab == "Courses") ProfileCoursesTab(userId: widget.userId),
 if (_activeTab == "Documents") const ProfileDocumentsTab(),
 if (_activeTab == "Email Invites") const EmailInvitesForm(),
 const SizedBox(height: 20),

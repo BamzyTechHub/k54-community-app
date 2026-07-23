@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -50,6 +50,7 @@ class _MessagesPageState extends State<MessagesPage> {
     super.initState();
     _controller.addListener(() => setState(() {}));
     _controller.load();
+    _controller.startPolling();
     _searchFocusNode.addListener(() {
       if (!_searchFocusNode.hasFocus && _searchController.text.isEmpty) {
         setState(() => _searchExpanded = false);
@@ -107,11 +108,11 @@ class _MessagesPageState extends State<MessagesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF008000),
         onPressed: _newConversation,
-        child: const Icon(Icons.edit, color: Colors.white),
+        child: const Icon(Icons.edit, color: AppColors.white),
       ),
       body: SafeArea(
         child: Padding(
@@ -216,8 +217,8 @@ class _MessagesPageState extends State<MessagesPage> {
               onTap: () => Navigator.pop(sheetContext, "pin"),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text("Erase conversation", style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.delete_outline, color: AppColors.error),
+              title: const Text("Erase conversation", style: TextStyle(color: AppColors.error)),
               onTap: () => Navigator.pop(sheetContext, "erase"),
             ),
           ],
@@ -263,7 +264,7 @@ class _MessagesPageState extends State<MessagesPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Erase", style: TextStyle(color: Colors.red)),
+            child: const Text("Erase", style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -286,7 +287,7 @@ class _MessagesPageState extends State<MessagesPage> {
       isOnline: thread.otherUserOnline,
       title: thread.otherUserName,
       titleStyle: TextStyle(fontSize: 17, fontWeight: thread.isUnread ? FontWeight.bold : FontWeight.w600),
-      titlePrefix: thread.isPinned ? Icon(Icons.push_pin, size: 13, color: Colors.grey.shade500) : null,
+      titlePrefix: thread.isPinned ? Icon(Icons.push_pin, size: 13, color: AppColors.greyShade500) : null,
       subtitle: thread.lastMessagePreview,
       onTap: () async {
         await Navigator.push(
@@ -319,7 +320,7 @@ class _MessagesPageState extends State<MessagesPage> {
               ),
               child: Text(
                 "${thread.unreadCount}",
-                style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: AppColors.white, fontSize: 8, fontWeight: FontWeight.bold),
               ),
             ),
           ],

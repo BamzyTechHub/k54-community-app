@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
 
@@ -13,7 +14,7 @@ class TouchIdVerified extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
 
       body: SafeArea(
         child: Padding(
@@ -38,7 +39,7 @@ class TouchIdVerified extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: AppColors.black,
                 ),
               ),
 
@@ -50,7 +51,7 @@ class TouchIdVerified extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey,
+                  color: AppColors.grey,
                   height: 1.3,
                 ),
               ),
@@ -72,7 +73,7 @@ class TouchIdVerified extends StatelessWidget {
                 "Verified",
                 style: TextStyle(
                   fontSize: 18,
-                  color: Colors.black54,
+                  color: AppColors.black54,
                   fontWeight: FontWeight.w500,
                 ),
               ),

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/home/screens/home_page.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
@@ -8,8 +9,8 @@ import 'package:k54_mobile/features/profile/widgets/profile_fields_form.dart';
 /// Post-signup onboarding step. Shares its xprofile field inputs (Field/
 /// Industry, Professional Status, Date of Birth, Gender, Bio, social
 /// links) with EditProfilePage via [ProfileFieldsForm] rather than
-/// maintaining a second hand-built copy - see that widget's doc comment
-/// for why those fields are shown/editable but not all sent yet.
+/// maintaining a second hand-built copy - every field now has a confirmed
+/// write shape and actually saves, see ProfileFieldsForm's doc comment.
 class ProfileSetup extends StatefulWidget {
   const ProfileSetup({super.key});
 
@@ -51,27 +52,44 @@ class _ProfileSetupState extends State<ProfileSetup> {
     try {
       // Username is set at signup (registration's field_3) and isn't
       // editable via xprofile, so it's validated above but never re-sent
-      // here. Only Bio (field 17) has a confirmed write payload shape -
-      // see ProfileFieldsForm's doc comment for the rest.
+      // here. Every other field's write shape is confirmed - see
+      // ProfileFieldsForm's and BuddyBossService's doc comments.
       final user = await authService.getCurrentUser();
       final userId = user.data["id"].toString();
 
-      await buddyBossService.updateProfileField(
-        userId: userId,
-        fieldId: 17,
-        value: _fields.bioController.text.trim(),
-      );
+      final writes = <Future<void>>[
+        buddyBossService.updateProfileField(userId: userId, fieldId: 17, value: _fields.bioController.text.trim()),
+      ];
+      if (_fields.fieldValue != null) {
+        writes.add(buddyBossService.updateProfileField(userId: userId, fieldId: 31, value: _fields.fieldValue!));
+      }
+      if (_fields.professionalStatusValue != null) {
+        writes.add(buddyBossService.updateProfileField(userId: userId, fieldId: 5, value: _fields.professionalStatusValue!));
+      }
+      if (_fields.genderValue != null) {
+        writes.add(buddyBossService.updateProfileField(userId: userId, fieldId: 18, value: _fields.genderValue!));
+      }
+      if (_fields.dateOfBirth != null) {
+        final dob = _fields.dateOfBirth!;
+        final formatted = "${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')} 00:00:00";
+        writes.add(buddyBossService.updateProfileField(userId: userId, fieldId: 4, value: formatted));
+      }
+      if (_fields.facebookController.text.trim().isNotEmpty || _fields.linkedinController.text.trim().isNotEmpty) {
+        writes.add(buddyBossService.updateSocialNetworksField(
+          userId: userId,
+          fieldId: 13,
+          networks: {
+            "facebook": _fields.facebookController.text.trim(),
+            "linkedIn": _fields.linkedinController.text.trim(),
+          },
+        ));
+      }
+
+      await Future.wait(writes);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Bio saved. Field, Professional Status, Date of Birth, Gender "
-            "and Social Links aren't syncing yet - we're still confirming "
-            "how the website expects those.",
-          ),
-          duration: Duration(seconds: 4),
-        ),
+        const SnackBar(content: Text("Profile saved")),
       );
       Navigator.pushAndRemoveUntil(
         context,
@@ -89,7 +107,7 @@ class _ProfileSetupState extends State<ProfileSetup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -106,7 +124,7 @@ class _ProfileSetupState extends State<ProfileSetup> {
                 const SizedBox(height: 5),
                 const Text(
                   "Kindly setup your profile",
-                  style: TextStyle(color: Colors.grey, fontSize: 15),
+                  style: TextStyle(color: AppColors.grey, fontSize: 15),
                 ),
                 const SizedBox(height: 25),
                 TextField(

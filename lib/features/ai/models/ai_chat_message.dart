@@ -13,11 +13,20 @@ class AiChatMessage {
   /// affordance instead of rendering the error text as a normal reply.
   final bool isError;
 
+  /// Set only on the one scripted confirmation message that follows a
+  /// successful in-chat group creation (see AiChatController's
+  /// conversational group-creation flow) - lets the UI attach a real
+  /// "View Group" action to that specific bubble. Never sent to the real
+  /// `/chat` backend as part of `history` (AiRepository.sendPending only
+  /// maps role/content), so this is purely local UI state.
+  final String? createdGroupId;
+
   AiChatMessage({
     required this.role,
     required this.content,
     required this.timestamp,
     this.isError = false,
+    this.createdGroupId,
   });
 
   bool get isUser => role == "user";
@@ -26,6 +35,7 @@ class AiChatMessage {
         "role": role,
         "content": content,
         "timestamp": timestamp.toIso8601String(),
+        "createdGroupId": ?createdGroupId,
       };
 
   factory AiChatMessage.fromJson(Map<String, dynamic> json) {
@@ -33,6 +43,7 @@ class AiChatMessage {
       role: json["role"] ?? "user",
       content: json["content"] ?? "",
       timestamp: DateTime.tryParse(json["timestamp"] ?? "") ?? DateTime.now(),
+      createdGroupId: json["createdGroupId"]?.toString(),
     );
   }
 }

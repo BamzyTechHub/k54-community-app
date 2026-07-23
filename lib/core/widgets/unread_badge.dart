@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// Wraps any icon with a small red unread-count badge that updates
 /// automatically whenever [count] changes - no manual refresh calls
@@ -21,23 +22,27 @@ class UnreadBadge extends StatelessWidget {
           children: [
             child,
             if (value > 0)
+              // Was minWidth/minHeight 16 with 5px horizontal padding - on
+              // a "9+" count that stretched wide enough to nearly cover a
+              // 24px bell icon entirely (flagged directly: "reduce the
+              // size... it's currently covering the whole bell").
               Positioned(
-                right: -4,
+                right: -3,
                 top: -2,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                  constraints: const BoxConstraints(minWidth: 13, minHeight: 13),
                   decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1.5),
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.white, width: 1.2),
                   ),
                   child: Text(
                     value > 9 ? "9+" : "$value",
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
+                      color: AppColors.white,
+                      fontSize: 8,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

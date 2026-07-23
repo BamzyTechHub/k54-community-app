@@ -1,8 +1,15 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
+import 'package:k54_mobile/core/services/buddyboss_service.dart';
+import 'package:k54_mobile/core/utils/open_profile.dart';
 import 'package:k54_mobile/core/widgets/fade_slide_in.dart';
 import 'package:k54_mobile/core/widgets/skeleton_loaders.dart';
 import 'package:k54_mobile/core/widgets/state_views.dart';
+import 'package:k54_mobile/features/activity/widgets/comments_sheet.dart';
+import 'package:k54_mobile/features/friends/screens/friends_page.dart';
+import 'package:k54_mobile/features/groups/screens/group_detail_page.dart';
+import 'package:k54_mobile/features/messaging/screens/chat_page.dart';
 import 'package:k54_mobile/features/notifications/controllers/notifications_controller.dart';
 import 'package:k54_mobile/features/notifications/models/app_notification.dart';
 
@@ -46,7 +53,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -109,9 +116,68 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
+  /// Routes a tapped notification to whatever real content it's about,
+  /// using BuddyPress/BuddyBoss's standard `item_id`/`secondary_item_id`
+  /// conventions for each component (well-established open-source
+  /// behavior, not guessed): messages -> item_id is the thread id;
+  /// friends -> item_id is the friendship id, secondary_item_id is the
+  /// other user's id; groups -> item_id is the group id. The `activity`
+  /// mapping (item_id = the activity/post id) is confirmed directly
+  /// against this site's own live notifications this session.
+  Future<void> _openNotification(AppNotification notification) async {
+    _controller.markRead(notification);
+
+    switch (notification.component) {
+      case 'messages':
+        if (notification.itemId.isEmpty) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ChatPage(threadId: notification.itemId)),
+        );
+        break;
+
+      case 'activity':
+        if (notification.itemId.isEmpty) return;
+        try {
+          final post = await BuddyBossService().getActivity(notification.itemId);
+          if (!mounted) return;
+          CommentsSheet.show(context, post);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Couldn't open this post: $e")),
+            );
+          }
+        }
+        break;
+
+      case 'friends':
+        if (notification.secondaryItemId != null && notification.secondaryItemId!.isNotEmpty) {
+          openProfile(context, notification.secondaryItemId!);
+        } else {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendsPage()));
+        }
+        break;
+
+      case 'groups':
+        if (notification.itemId.isEmpty) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => GroupDetailPage(groupId: notification.itemId)),
+        );
+        break;
+
+      default:
+        // Unrecognized component - nothing confirmed to route to, so this
+        // just leaves the notification marked read rather than guessing a
+        // destination.
+        break;
+    }
+  }
+
   Widget _notificationTile(AppNotification notification) {
     return InkWell(
-      onTap: () => _controller.markRead(notification),
+      onTap: () => _openNotification(notification),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(15),
@@ -123,7 +189,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           children: [
             CircleAvatar(
               backgroundColor: notification.displayColor,
-              child: Icon(notification.displayIcon, color: Colors.white),
+              child: Icon(notification.displayIcon, color: AppColors.white),
             ),
             const SizedBox(width: 15),
             Expanded(
@@ -132,7 +198,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 children: [
                   Text(notification.displayText, style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 5),
-                  Text(_relativeTime(notification.date), style: const TextStyle(color: Colors.grey)),
+                  Text(_relativeTime(notification.date), style: const TextStyle(color: AppColors.grey)),
                 ],
               ),
             ),
@@ -140,7 +206,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
               ),
           ],
         ),

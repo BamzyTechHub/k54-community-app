@@ -42,15 +42,33 @@ class AiApiService {
   /// `privacy` must be one of "public"/"private"/"hidden" - anything
   /// else the backend itself defaults to "public" server-side, but this
   /// doesn't rely on that fallback.
+  ///
+  /// [type]/[topics]/[forum]/[courseTab]/[inviteMembers] mirror the real
+  /// website's own onboarding wizard request body exactly (confirmed
+  /// from its live JS, 2026-07-21 - `k54History`/`onboardingData` in the
+  /// site's own `<script>`) - the PHP handler (`k54_create_group`) only
+  /// actually reads `groupName`/`description`/`privacy` today and ignores
+  /// the rest, but sending them anyway matches the real client's request
+  /// shape and costs nothing if the backend starts using them later.
   Future<Response> createGroup({
     required String groupName,
     required String description,
     required String privacy,
+    String? type,
+    String? topics,
+    String? forum,
+    String? courseTab,
+    String? inviteMembers,
   }) {
     return _api.post("/k54-ai/v1/create-group", {
       "groupName": groupName,
       "description": description,
       "privacy": privacy,
+      "type": ?type,
+      "topics": ?topics,
+      "forum": ?forum,
+      "courseTab": ?courseTab,
+      "inviteMembers": ?inviteMembers,
     });
   }
 }

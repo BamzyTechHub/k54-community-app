@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// Single source of truth for how a user/member avatar renders app-wide -
 /// consolidates what used to be 16 separately hand-written `CircleAvatar`
@@ -51,7 +52,7 @@ class UserAvatar extends StatelessWidget {
     final innerRadius = borderColor == null ? radius : radius - borderWidth;
     final avatar = CircleAvatar(
       radius: innerRadius,
-      backgroundColor: Colors.grey.shade200,
+      backgroundColor: AppColors.greyShade200,
       backgroundImage: provider,
       child: provider != null
           ? null
@@ -88,7 +89,7 @@ class UserAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF46A046),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: dotSize * 0.18),
+              border: Border.all(color: AppColors.white, width: dotSize * 0.18),
             ),
           ),
         ),

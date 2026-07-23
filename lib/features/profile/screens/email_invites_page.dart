@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/buddyboss_service.dart';
@@ -127,7 +127,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
         const SizedBox(height: 6),
         Text(
           "Invite non-members to create an account. They will receive an email with a link to register.",
-          style: GoogleFonts.lato(fontSize: 13, color: Colors.grey.shade700),
+          style: GoogleFonts.lato(fontSize: 13, color: AppColors.greyShade700),
         ),
         const SizedBox(height: 14),
         Container(
@@ -179,7 +179,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
                           borderRadius: BorderRadius.circular(12),
                           child: const Padding(
                             padding: EdgeInsets.all(4),
-                            child: Icon(Icons.close, size: 16, color: Colors.grey),
+                            child: Icon(Icons.close, size: 16, color: AppColors.grey),
                           ),
                         ),
                       ],
@@ -195,7 +195,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
                     width: 32,
                     height: 32,
                     decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
-                    child: const Icon(Icons.add, color: Colors.white, size: 18),
+                    child: const Icon(Icons.add, color: AppColors.white, size: 18),
                   ),
                 ),
               ),
@@ -207,7 +207,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
         const SizedBox(height: 14),
         Text(
           "Customize the text of the invitation email. A link to register will be sent with the email.",
-          style: GoogleFonts.lato(fontSize: 12, color: Colors.grey.shade700),
+          style: GoogleFonts.lato(fontSize: 12, color: AppColors.greyShade700),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -220,8 +220,8 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
             alignLabelWithHint: true,
             contentPadding: const EdgeInsets.all(14),
             filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade300)),
+            fillColor: AppColors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: AppColors.greyShade300)),
           ),
         ),
         const SizedBox(height: 10),
@@ -256,7 +256,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
         if (_loadingInvites)
           const Center(child: CircularProgressIndicator(color: AppColors.green))
         else if ((_invites ?? []).isEmpty)
-          Text("No invites sent yet", style: GoogleFonts.lato(color: Colors.grey.shade600))
+          Text("No invites sent yet", style: GoogleFonts.lato(color: AppColors.greyShade600))
         else
           ...(_invites ?? []).map((invite) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -274,7 +274,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
                           Text((invite["name"] ?? "").toString(), style: GoogleFonts.lato(fontWeight: FontWeight.w600)),
                           Text(
                             (invite["email"] ?? "").toString(),
-                            style: GoogleFonts.lato(fontSize: 12, color: Colors.grey.shade700),
+                            style: GoogleFonts.lato(fontSize: 12, color: AppColors.greyShade700),
                           ),
                         ],
                       ),
@@ -295,7 +295,7 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.green.withValues(alpha: 0.4)),
       ),
@@ -306,8 +306,9 @@ class _EmailInvitesFormState extends State<EmailInvitesForm> {
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+          hintStyle: TextStyle(fontSize: 13, color: AppColors.greyShade500),
           border: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
       ),
     );

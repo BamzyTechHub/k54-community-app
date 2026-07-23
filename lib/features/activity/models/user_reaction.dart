@@ -16,7 +16,16 @@ class UserReaction {
 
   factory UserReaction.fromJson(Map<String, dynamic> json) {
     return UserReaction(
-      id: int.tryParse('${json["id"] ?? 0}') ?? 0,
+      // WordPress/BuddyBoss objects often expose a row's own primary key as
+      // "ID" (capital, the WP core convention for posts/users/comments)
+      // rather than "id" - checking both defensively rather than assuming
+      // lowercase, the same precedent already found for group admin
+      // objects earlier in this project. Silently defaulting to 0 here
+      // (this field's old behavior) sent every un-like's DELETE to
+      // `/user-reactions/0`, which the server correctly 404s - a
+      // guaranteed failure, not an occasional one, matching the reported
+      // "tap like again does nothing but error" bug.
+      id: int.tryParse('${json["id"] ?? json["ID"] ?? 0}') ?? 0,
       reactionId: int.tryParse('${json["reaction_id"] ?? 0}') ?? 0,
       itemType: (json["item_type"] ?? "").toString(),
       itemId: (json["item_id"] ?? "").toString(),

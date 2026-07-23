@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -16,6 +16,7 @@ class PressablePill extends StatefulWidget {
   final bool filled;
   final bool loading;
   final double height;
+  final double fontSize;
 
   const PressablePill({
     super.key,
@@ -25,6 +26,7 @@ class PressablePill extends StatefulWidget {
     this.filled = true,
     this.loading = false,
     this.height = 44,
+    this.fontSize = 13,
   });
 
   @override
@@ -44,7 +46,7 @@ class _PressablePillState extends State<PressablePill> {
     final active = _pressed && !widget.loading;
     final bg = active
         ? AppColors.pillActiveBg
-        : (widget.filled ? AppColors.pillRegularBg : Colors.transparent);
+        : (widget.filled ? AppColors.pillRegularBg : AppColors.transparent);
     final fg = widget.filled ? AppColors.pillText : (active ? AppColors.pillText : AppColors.green);
 
     return GestureDetector(
@@ -76,9 +78,13 @@ class _PressablePillState extends State<PressablePill> {
                       Icon(widget.icon, size: 16, color: fg),
                       const SizedBox(width: 6),
                     ],
-                    Text(
-                      widget.label,
-                      style: GoogleFonts.lato(fontWeight: FontWeight.w700, fontSize: 13, color: fg),
+                    Flexible(
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.lato(fontWeight: FontWeight.w700, fontSize: widget.fontSize, color: fg),
+                      ),
                     ),
                   ],
                 ),

@@ -1,9 +1,12 @@
 # Feature: Groups
 
-## Status
-- **Website:** Partial. Legacy `admin-ajax.php` (`groups_filter`, `groups_join_group`) request shape confirmed via HAR1, no response body. Full `buddyboss/v1/groups` (16 routes) + forums/topics/reply surface (bbPress-style, 17 more routes across `forums`/`bb-topics`/`topics`/`reply`) confirmed via route index. Group forums existence corroborated independently by wp-admin's own "4 Forums, 19 Discussions, 25 Replies" count (`plugin-inventory.md`).
-- **Flutter:** Confirmed via direct code reading — **both** group surfaces are 100% dummy data with zero API wiring and zero card-level navigation, confirmed via grep. They show genuinely different fake datasets and different card designs, not just duplicated code — reinforcing that the "which one is real" question is a product decision, not a trivial dedup.
-- **Figma:** Not yet reviewed.
+## Status — UPDATED 2026-07-20, most of this file is now stale history
+The rest of this file (Status through Parity Scorecard below) describes an earlier "0% wired, fully decorative" snapshot that **no longer reflects the app**. Since then: `lib/features/groups/` was built as a real feature (list/search/sort/create/join/leave, all wired to `buddyboss/v1/groups`, following the same models/services/repositories/controllers/screens layering used elsewhere). Kept below for history, not as current status.
+
+**New findings, 2026-07-20 (live, zero-auth route-index read + a real authenticated group-list fetch):**
+- The group-list response (`GET /buddyboss/v1/groups`) embeds far more per-user state than the app was using: `is_member`, `can_join`, `is_admin`, `is_mod`, `role` ("Member"/"Organizer"/etc.), `request_id`, `invite_id` — all directly on every group object, no extra call needed. The app was re-deriving membership only from a separate `/groups/me` call and had no concept of role or pending-request state at all. Now parsed onto `Group` and used directly.
+- **This resolves Open Question #3 below** ("what triggers membership-requests vs. invites"): it's exactly the public/private distinction, confirmed by the route args and `can_join` semantics — `can_join: true` (public, not yet a member) → direct `POST groups/{id}/members`; `can_join: false` + not a member → the real join action is `POST groups/membership-requests` (body `{group_id, user_id, message, joined}`), which an admin later resolves via `POST/PUT/PATCH groups/membership-requests/{request_id}` (accept) or `DELETE .../{request_id}` (reject/cancel). Every group on this site is currently `status: "public"`, so the pending-request UI state ("Requested", tap-to-cancel) is wired but not yet observable against a real private group end-to-end.
+- Invite creation (`POST groups/invites`, body `{user_id, inviter_id, group_id, message, send_invite}`) is confirmed real but NOT wired yet — it needs a "pick a member to invite into this specific group" UI, which doesn't exist because there's no group-detail screen yet (the app only has the list/directory page). That's a separate, larger follow-up, not a one-line fix.
 
 ## Network Behavior
 

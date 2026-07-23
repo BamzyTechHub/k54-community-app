@@ -67,6 +67,13 @@ class K54SearchField extends StatelessWidget {
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
+                // Explicit, not implied by `border` alone - the app-wide
+                // green focusedBorder theme (main.dart) otherwise wins on
+                // focus regardless of this field's own borderless design,
+                // which is exactly what put a green rectangle over this
+                // pill shape (flagged directly - "make the design look
+                // off").
+                focusedBorder: InputBorder.none,
                 hintText: hintText,
                 hintStyle: GoogleFonts.poppins(fontSize: fontSize, color: AppColors.jetBlack.withValues(alpha: 0.5)),
               ),

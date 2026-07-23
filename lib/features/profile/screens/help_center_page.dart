@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
-import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/k54_search_field.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
+import 'package:k54_mobile/features/profile/widgets/contact_us_flow.dart';
 
 /// Matches the K54 Figma file's Help Center screen (exported via
 /// Figma-to-Code, 2026-07-14 - no node id captured since the API was
@@ -29,13 +29,12 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
 
-  // "Billing & Subscriptions" removed - not in the Figma reference,
-  // which shows exactly these 5.
   static const _categories = [
     "Account Issues",
     "App Features",
     "Technical Support",
     "Privacy & Security",
+    "Billing & Subscriptions",
     "General Inquiries",
   ];
 
@@ -73,138 +72,6 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
 
   Future<void> _openUrl(String url) async {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-  }
-
-  // Matches the Figma "Contact Us popup Screen" - a first step choosing a
-  // contact method (Email/Live Chat/Call/Report a Bug/Visit Help Center),
-  // previously missing entirely; tapping went straight to the message
-  // box below. Only "Live Chat Support" leads anywhere further (the
-  // message box) since it's the one channel this app can plausibly
-  // route through its own chat later - the others have no confirmed
-  // contact address/number to send to.
-  Future<void> _showContactOptionsSheet() async {
-    final option = await showK54BottomSheet<String>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.email_outlined, color: AppColors.jetBlack),
-              title: const Text("Email Support"),
-              onTap: () => Navigator.pop(sheetContext, "email"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.chat_bubble_outline, color: AppColors.jetBlack),
-              title: const Text("Live Chat Support"),
-              onTap: () => Navigator.pop(sheetContext, "chat"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.call_outlined, color: AppColors.jetBlack),
-              title: const Text("Call Us"),
-              onTap: () => Navigator.pop(sheetContext, "call"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.bug_report_outlined, color: AppColors.jetBlack),
-              title: const Text("Report a Bug"),
-              onTap: () => Navigator.pop(sheetContext, "bug"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.help_outline, color: AppColors.jetBlack),
-              title: const Text("Visit Help Center"),
-              onTap: () => Navigator.pop(sheetContext, null),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!mounted || option == null) return;
-    switch (option) {
-      case "chat":
-        _showContactSheet();
-        break;
-      case "email":
-        _comingSoon("Email support");
-        break;
-      case "call":
-        _comingSoon("Phone support");
-        break;
-      case "bug":
-        _comingSoon("Bug reporting");
-        break;
-    }
-  }
-
-  Future<void> _showContactSheet() async {
-    final messageController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: K54Dialog.shape,
-        title: Text(
-          "We would respond to you in the K54 chat",
-          style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        content: TextField(
-          controller: messageController,
-          maxLines: 4,
-          decoration: InputDecoration(
-            hintText: "Tell us how we can help",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: TapScale(
-                  onTap: () => Navigator.pop(dialogContext),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFF008000), width: 1.05),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        "Cancel",
-                        style: TextStyle(color: Color(0xFF008000), fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TapScale(
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _comingSoon("Sending a support message");
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: AppColors.brandGradient,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        "Contact Us",
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _socialIcon(IconData icon, String platform) {
@@ -254,7 +121,7 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
         _faqs.where((f) => f.$1.toLowerCase().contains(_query.toLowerCase())).toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -420,7 +287,7 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
                 ],
               ),
               const SizedBox(height: 26),
-              PrimaryButton(label: "Contact US", height: 48, onPressed: _showContactOptionsSheet),
+              PrimaryButton(label: "Contact US", height: 48, onPressed: () => showContactUsFlow(context)),
               const SizedBox(height: 12),
               PrimaryButton(
                 label: "Cancel",

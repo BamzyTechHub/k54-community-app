@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -16,7 +16,7 @@ class EmailVerificationPendingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -27,7 +27,7 @@ class EmailVerificationPendingPage extends StatelessWidget {
                 width: 90,
                 height: 90,
                 decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-                child: const Icon(Icons.mark_email_unread_outlined, color: Colors.white, size: 42),
+                child: const Icon(Icons.mark_email_unread_outlined, color: AppColors.white, size: 42),
               ),
               const SizedBox(height: 24),
               Text(
@@ -39,7 +39,7 @@ class EmailVerificationPendingPage extends StatelessWidget {
               Text(
                 "We've sent a confirmation link to $email. Your email won't change until you click it.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.lato(fontSize: 14, color: Colors.grey.shade700),
+                style: GoogleFonts.lato(fontSize: 14, color: AppColors.greyShade700),
               ),
               const SizedBox(height: 30),
               PrimaryButton(

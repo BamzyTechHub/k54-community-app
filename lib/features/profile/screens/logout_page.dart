@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/services/auth_service.dart';
@@ -30,7 +30,7 @@ class _LogoutPageState extends State<LogoutPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
@@ -55,7 +55,7 @@ class _LogoutPageState extends State<LogoutPage> {
                   decoration: const BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
                   child: Icon(
                     _loggedOut ? Icons.check : Icons.close,
-                    color: Colors.white,
+                    color: AppColors.white,
                     size: 48,
                   ),
                 ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:k54_mobile/core/theme/app_colors.dart';
@@ -17,6 +17,7 @@ import 'package:k54_mobile/core/widgets/user_avatar.dart';
 import 'package:k54_mobile/features/groups/controllers/groups_controller.dart';
 import 'package:k54_mobile/features/groups/models/group_model.dart';
 import 'package:k54_mobile/features/groups/repositories/groups_repository.dart';
+import 'package:k54_mobile/features/groups/screens/group_detail_page.dart';
 import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
 
 /// Single source of truth for the Groups screen, reused from three places
@@ -29,10 +30,16 @@ import 'package:k54_mobile/features/groups/widgets/create_group_dialog.dart';
 /// Wired to the confirmed `/buddyboss/v1/groups` REST surface (see
 /// group_model.dart's doc comment - sourced from BuddyPress's open-source
 /// BP-REST plugin, same evidence-based approach as Friends). List,
-/// create, join, and leave are all real; "Organizer" vs. plain "Join"
-/// distinction from the earlier mock UI is dropped since no confirmed
-/// field identifies the current user's role within a group - only
-/// membership (join/leave) is shown, which is fully confirmed.
+/// create, join, and leave are all real. The real per-user role
+/// (Organizer/Moderator/Member) IS available after all - confirmed live
+/// 2026-07-20, directly embedded on every group in the list response
+/// (`role`, `is_admin`, `is_mod`) - correcting the earlier note here that
+/// no such field existed. Private groups (`can_join: false`) route
+/// through the real membership-request flow (`groups/membership-
+/// requests`) instead of a direct join, showing "Requested" while
+/// pending - not yet observable end-to-end since every group on this site
+/// is currently "public", but the endpoint and request/response shapes
+/// are confirmed from the live route index, not guessed.
 class GroupsPage extends StatefulWidget {
   final bool embedded;
 
@@ -123,7 +130,7 @@ class _GroupsPageState extends State<GroupsPage> {
   }
 
   Future<void> _toggleMembership(Group group) async {
-    final isMember = _myGroupIds.contains(group.id);
+    final isMember = group.isMember || _myGroupIds.contains(group.id);
     // Optimistic - flips the button instantly instead of waiting on the
     // round-trip + a full My Groups refetch, then reconciles for real.
     setState(() {
@@ -136,10 +143,27 @@ class _GroupsPageState extends State<GroupsPage> {
     try {
       if (isMember) {
         await GroupsRepository.instance.leaveGroup(group.id);
-      } else {
+        await _myGroupsController.load();
+      } else if (group.canJoin) {
+        // Public group - direct join.
         await GroupsRepository.instance.joinGroup(group.id);
+        await _myGroupsController.load();
+      } else {
+        // Private group - `groups/{id}/members` isn't the right endpoint
+        // here (can_join is false); this creates a pending request
+        // instead, which the group's admin accepts/rejects separately.
+        // The optimistic "Joined" flip above doesn't apply to this path,
+        // so revert it and refresh the list to pick up the real
+        // request_id from the server instead.
+        setState(() => _myGroupIds.remove(group.id));
+        await GroupsRepository.instance.requestMembership(group.id);
+        await _allGroupsController.load();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Join request sent - waiting for the group admin to accept")),
+          );
+        }
       }
-      await _myGroupsController.load();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -151,6 +175,20 @@ class _GroupsPageState extends State<GroupsPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Couldn't update membership: $e")),
+      );
+    }
+  }
+
+  Future<void> _cancelRequest(Group group) async {
+    final requestId = group.requestId;
+    if (requestId == null) return;
+    try {
+      await GroupsRepository.instance.cancelMembershipRequest(requestId);
+      await _allGroupsController.load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't cancel request: $e")),
       );
     }
   }
@@ -194,13 +232,13 @@ class _GroupsPageState extends State<GroupsPage> {
   Widget build(BuildContext context) {
     if (widget.embedded) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         body: SafeArea(child: _buildEmbeddedList(context)),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(child: _buildFullDirectory(context)),
       bottomNavigationBar: const K54BottomNavigation(currentIndex: 3),
     );
@@ -265,15 +303,30 @@ class _GroupsPageState extends State<GroupsPage> {
                   controller: _searchController,
                   onChanged: _allGroupsController.search,
                   hintText: "Search groups",
-                  height: 24,
-                  iconSize: 14,
-                  fontSize: 12,
+                  // Was 24 - matches the AI page's search bar size now,
+                  // per direct tester feedback ("that size is perfect").
+                  height: 40,
+                  iconSize: 18,
+                  fontSize: 14,
                 ),
               ),
               const SizedBox(width: 8),
+              // Re-added 2026-07-22 per direct tester feedback ("i noticed
+              // you remove the funnel in the group page? add it back") -
+              // same icon + position as Members' own header. Opens the
+              // same sort popover as the toolbar pill below (see
+              // _buildGroupsToolbar's doc comment for why that pill exists
+              // too) - not a second, different filter.
               CompositedTransformTarget(
                 link: _filterLayerLink,
-                child: _plainIcon(icon: Icons.filter_alt_outlined, onTap: _openFilterPopover),
+                child: TapScale(
+                  onTap: _openFilterPopover,
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.filter_alt_outlined, size: 22, color: AppColors.jetBlack),
+                  ),
+                ),
               ),
             ],
           ),
@@ -321,25 +374,38 @@ class _GroupsPageState extends State<GroupsPage> {
           style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.jetBlack),
         ),
         const Spacer(),
-        Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.groupCardAccent),
+        // Same custom TapScale-trigger + showFilterPopover pattern as
+        // Courses' "Title (A-Z)" filter - was a native Flutter
+        // `DropdownButton` before (its own default dropdown menu, a
+        // different render path entirely from the shared custom popover),
+        // which is what actually made this look/feel different from
+        // Courses despite both being "a sort filter" - direct tester
+        // feedback. The header's separate funnel icon is gone now too -
+        // its only content was this exact same sort list duplicated, so
+        // once sort lives here directly it had nothing left to show.
+        CompositedTransformTarget(
+          link: _filterLayerLink,
+          child: TapScale(
+            onTap: _openFilterPopover,
             borderRadius: BorderRadius.circular(7),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _allGroupsController.orderby,
-              icon: const Icon(Icons.keyboard_arrow_down, size: 15),
-              isDense: true,
-              style: GoogleFonts.poppins(fontSize: 11, color: AppColors.jetBlack),
-              items: _sortOptions.entries
-                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) _allGroupsController.sortBy(value);
-              },
+            child: Container(
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.groupCardAccent),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _sortOptions[_allGroupsController.orderby] ?? _sortOptions.values.first,
+                    style: GoogleFonts.poppins(fontSize: 11, color: AppColors.jetBlack),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.keyboard_arrow_down, size: 15),
+                ],
+              ),
             ),
           ),
         ),
@@ -410,18 +476,60 @@ class _GroupsPageState extends State<GroupsPage> {
     );
   }
 
+  // Was avatar+name+a purely decorative static icon - no member count,
+  // no join state, no role - the one piece of this screen that read as
+  // a placeholder even though the data backing it (group.isMember/role/
+  // totalMemberCount) was already real and already used by the richer
+  // _groupCard above. Now shows the same real state, just in the more
+  // compact row shape this embedded context needs.
   Widget _embeddedGroupTile(Group group) {
+    final isMember = group.isMember || _myGroupIds.contains(group.id);
+    final requested = !isMember && group.hasPendingRequest;
+    // ContactRow already wraps itself in its own TapScale - a second,
+    // outer TapScale here (with ContactRow's own onTap left unset, so its
+    // inner TapScale had a no-op handler) created the same nested-gesture
+    // conflict already found and fixed on MemberCard: two tap-recognizing
+    // widgets stacked on the same area don't reliably resolve to the
+    // outer one, which read as the whole tile being static/unresponsive
+    // (direct tester feedback). Passing onTap straight to ContactRow
+    // removes the duplicate wrapper entirely.
     return ContactRow(
       avatarUrl: group.avatarUrl,
       title: group.name,
-      trailing: const Icon(Icons.groups_outlined, size: 20, color: AppColors.jetBlack),
+      subtitle: "${group.totalMemberCount} member${group.totalMemberCount == 1 ? '' : 's'}",
+      onTap: () => _openGroupDetail(group),
+      trailing: PressablePill(
+        label: isMember ? (group.role.isNotEmpty ? group.role : "Joined") : (requested ? "Requested" : "Join"),
+        icon: isMember ? Icons.check : (requested ? Icons.hourglass_top : Icons.add),
+        filled: isMember,
+        height: 30,
+        onTap: requested ? () => _cancelRequest(group) : () => _toggleMembership(group),
+      ),
     );
   }
 
-  Widget _groupCard(BuildContext context, Group group) {
-    final isMember = _myGroupIds.contains(group.id);
+  Future<void> _openGroupDetail(Group group) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => GroupDetailPage(groupId: group.id)),
+    );
+    if (changed == true) {
+      _allGroupsController.load();
+      _myGroupsController.load();
+    }
+  }
 
-    return Container(
+  Widget _groupCard(BuildContext context, Group group) {
+    // group.isMember is real, embedded directly on every group in the list
+    // response (confirmed live 2026-07-20) - _myGroupIds (from the
+    // separate /groups/me call) is kept only as a fallback for whichever
+    // list this card came from.
+    final isMember = group.isMember || _myGroupIds.contains(group.id);
+    final requested = !isMember && group.hasPendingRequest;
+
+    return GestureDetector(
+      onTap: () => _openGroupDetail(group),
+      child: Container(
       decoration: BoxDecoration(
         // Exact colors from the GROUPS Figma frame (node 87:76, "member
         // comp"), pulled via the REST API 2026-07-16 - was the tan/
@@ -459,7 +567,7 @@ class _GroupsPageState extends State<GroupsPage> {
                   width: 80,
                   height: 80,
                   padding: const EdgeInsets.all(5),
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
                   child: UserAvatar(imageUrl: group.avatarUrl, name: group.name),
                 ),
               ),
@@ -479,7 +587,15 @@ class _GroupsPageState extends State<GroupsPage> {
                   children: [
                     Text(group.status, style: GoogleFonts.lato(fontSize: 12, color: AppColors.groupCardAccent)),
                     _dot(),
-                    Text("Group", style: GoogleFonts.lato(fontSize: 12, color: AppColors.groupCardAccent)),
+                    // Real role (Organizer/Moderator/Member), confirmed
+                    // directly embedded on every group in the list
+                    // response (2026-07-20) - previously always showed
+                    // the static word "Group" here since no role field
+                    // was thought to exist.
+                    Text(
+                      group.role.isNotEmpty ? group.role : "Group",
+                      style: GoogleFonts.lato(fontSize: 12, color: AppColors.groupCardAccent),
+                    ),
                     _dot(),
                     Expanded(
                       child: Text(
@@ -491,20 +607,28 @@ class _GroupsPageState extends State<GroupsPage> {
                   ],
                 ),
                 const SizedBox(height: 13),
-                // Right-aligned pill, matching Figma's "Organizer"/"Join
-                // Group" button placement (node 87:76) - the member-avatar
-                // stack shown alongside it in Figma is skipped since no
-                // confirmed endpoint returns per-group member avatars.
-                // Shared PressablePill rather than a hand-rolled button, so
-                // it picks up the app-wide active/inactive button colors.
+                // Right-aligned pill, matching the real live site exactly
+                // (confirmed via a screenshot of the real Groups page,
+                // 2026-07-21): a member's own pill shows their real role
+                // ("Organizer"/"Member"), not a generic "Joined" - the
+                // member-avatar stack shown alongside it on the real site
+                // is skipped since no confirmed endpoint returns per-group
+                // member avatars cheaply enough to fetch per-card in a
+                // list. Shared PressablePill rather than a hand-rolled
+                // button, so it picks up the app-wide active/inactive
+                // button colors.
                 Align(
                   alignment: Alignment.centerRight,
                   child: PressablePill(
-                    label: isMember ? "Joined" : "Join Group",
-                    icon: isMember ? Icons.check : Icons.add,
+                    label: isMember ? (group.role.isNotEmpty ? group.role : "Joined") : (requested ? "Requested" : "Join Group"),
+                    icon: isMember ? Icons.check : (requested ? Icons.hourglass_top : Icons.add),
                     filled: isMember,
                     height: 34,
-                    onTap: () => _toggleMembership(group),
+                    // A pending private-group request cancels on tap
+                    // (real `groups/membership-requests/{id}` DELETE) -
+                    // there's nothing useful "join" can do while a
+                    // request is already outstanding.
+                    onTap: requested ? () => _cancelRequest(group) : () => _toggleMembership(group),
                   ),
                 ),
               ],
@@ -512,6 +636,7 @@ class _GroupsPageState extends State<GroupsPage> {
           ),
         ],
         ),
+      ),
       ),
     );
   }

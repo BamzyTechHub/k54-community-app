@@ -1,3 +1,95 @@
+/// A photo attached via BuddyBoss's own media/gallery mechanism
+/// (`bp_media_ids` on the activity object) - confirmed real via a live
+/// authenticated sample 2026-07-19, a separate mechanism from the
+/// featured-image field (`feature_media`) already parsed above.
+class PostPhoto {
+  final String imageUrl;
+  final String title;
+
+  const PostPhoto({required this.imageUrl, required this.title});
+
+  factory PostPhoto.fromJson(Map<String, dynamic> json) {
+    final data = json["attachment_data"];
+    String url = "";
+    if (data is Map) {
+      url = (data["activity_thumb"] ?? data["full"] ?? data["thumb"] ?? "").toString();
+    }
+    return PostPhoto(imageUrl: url, title: (json["title"] ?? "").toString());
+  }
+}
+
+/// A document attached via BuddyBoss's documents feature (`bp_documents`)
+/// - confirmed real 2026-07-19. `previewUrl` is a thumbnail image of the
+/// document, not the document itself - the real file is at [downloadUrl].
+class PostDocument {
+  final String filename;
+  final String extension;
+  final String size;
+  final String downloadUrl;
+  final String previewUrl;
+
+  const PostDocument({
+    required this.filename,
+    required this.extension,
+    required this.size,
+    required this.downloadUrl,
+    required this.previewUrl,
+  });
+
+  factory PostDocument.fromJson(Map<String, dynamic> json) {
+    final data = json["attachment_data"];
+    String preview = "";
+    if (data is Map) {
+      preview = (data["activity_thumb"] ?? data["thumb"] ?? "").toString();
+    }
+    return PostDocument(
+      filename: (json["filename"] ?? json["title"] ?? "Document").toString(),
+      extension: (json["extension"] ?? "").toString(),
+      size: (json["size"] ?? "").toString(),
+      downloadUrl: (json["download_url"] ?? "").toString(),
+      previewUrl: preview,
+    );
+  }
+}
+
+/// A video attached via BuddyBoss's video feature (`bp_videos`) - confirmed
+/// real 2026-07-19. [videoUrl] (the `bb-video-preview/...` link) was
+/// directly tested with a real authenticated request and returns a real
+/// `video/mp4` stream - a native video player can play it directly,
+/// passing the same Authorization bearer header the app already attaches
+/// to every other request via ApiService's shared Dio instance.
+class PostVideo {
+  final String videoUrl;
+  final String posterUrl;
+  final String durationLabel;
+
+  const PostVideo({required this.videoUrl, required this.posterUrl, required this.durationLabel});
+
+  factory PostVideo.fromJson(Map<String, dynamic> json) {
+    final data = json["attachment_data"];
+    String duration = "";
+    if (data is Map && data["meta"] is Map) {
+      duration = (data["meta"]["length_formatted"] ?? "").toString();
+    }
+    return PostVideo(
+      videoUrl: (json["url"] ?? "").toString(),
+      posterUrl: (json["video_activity_thumb"] ?? (data is Map ? data["full"] : null) ?? "").toString(),
+      durationLabel: duration,
+    );
+  }
+}
+
+/// Parses a BuddyBoss attachment field (`bp_media_ids`/`bp_videos`/
+/// `bp_documents`) into a list - every real sample seen so far has been a
+/// single object, not an array, but this handles both shapes defensively
+/// since a genuine multi-photo gallery post is plausible and unconfirmed
+/// either way.
+List<Map<String, dynamic>> _parseAttachmentField(dynamic raw) {
+  if (raw is Map && raw.isNotEmpty) return [Map<String, dynamic>.from(raw)];
+  if (raw is List) return raw.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+  return const [];
+}
+
 class Post {
   final String id;
   final String userId;
@@ -32,6 +124,33 @@ final bool canDelete;
   /// the close/open-comments toggle — it will not reflect a closure that
   /// happened in a previous session until the real field is identified.
   bool commentsClosed;
+  // Real BuddyBoss attachment mechanisms (bp_media_ids/bp_videos/
+  // bp_documents) - separate from postImage (the featured-image field).
+  // Every real sample seen has one of each at most, but these are lists
+  // since the field can technically hold more than one - see
+  // _parseAttachmentField's doc comment.
+  final List<PostPhoto> photos;
+  final List<PostVideo> videos;
+  final List<PostDocument> documents;
+  /// The real bbPress topic/reply id this activity is about - confirmed
+  /// live 2026-07-22 as `secondary_item_id`, only meaningful when
+  /// [activityType] is "bbp_topic_create" (a new discussion - the id IS
+  /// the topic id directly) or "bbp_reply_create" (a reply - the id is
+  /// the reply's own post id, whose `parent` field is the topic id).
+  /// Lets a group's Feed tab render a real "Join Discussion" link instead
+  /// of just a static activity notice, matching the real site.
+  final String? discussionId;
+
+  /// True when this activity is WPStream's own "I'm live" post - confirmed
+  /// live 2026-07-22 by a real captured sample: when a user goes live,
+  /// WPStream inserts a plain `activity_update` whose `content.rendered` is
+  /// a fixed template containing a `wpstream_player_wrapper` div (an empty
+  /// shell only WPStream's own site JS knows how to fill with an iframe -
+  /// which is exactly why this rendered as a blank/static box in the app
+  /// before: nothing was there to fill it). [userId] is the broadcaster to
+  /// resolve a real channel id from (via LiveVideoRepository), which is
+  /// then used to fetch the real playback status/HLS url.
+  final bool isLiveStreamActivity;
 
   Post({
     required this.id,
@@ -57,6 +176,11 @@ final bool canDelete;
     required this.canEdit,
     required this.canDelete,
     this.commentsClosed = false,
+    this.photos = const [],
+    this.videos = const [],
+    this.documents = const [],
+    this.discussionId,
+    this.isLiveStreamActivity = false,
   });
 
   factory Post.fromBuddyBoss(Map<String, dynamic> json) {
@@ -75,6 +199,42 @@ final bool canDelete;
     );
     } else if (json["content"] is String) {
       caption = json["content"];
+    }
+
+    // Confirmed live 2026-07-22 - see [isLiveStreamActivity]'s doc comment.
+    // The marker divs are stripped out here (rather than left for the Html
+    // widget to render, which would just show blank boxes) since PostCard
+    // renders its own real "LIVE" card in their place instead.
+    final isLiveStreamActivity = caption.contains('wpstream_player_wrapper');
+    if (isLiveStreamActivity) {
+      caption = caption
+          .replaceAll(RegExp(r'<div class="wpstreaam_bb_see_mee_live">.*?</div>', dotAll: true), "")
+          .replaceAll(
+            RegExp(
+              r'<div class="wpstream_insert_player_elementor_wrapper">.*?</div>\s*</div>\s*</div>\s*</div>',
+              dotAll: true,
+            ),
+            "",
+          )
+          .trim();
+    }
+
+    // For every activity type other than a real text post
+    // ("activity_update"), `content.rendered` comes back genuinely empty -
+    // confirmed live 2026-07-20 across joined_group/new_member/
+    // friendship_created/updated_profile/new_avatar. The real human-
+    // readable sentence ("X joined the group Y", "X became a registered
+    // member", ...) lives on `title` instead (HTML with real profile/group
+    // links), which the app was never reading at all - this is exactly why
+    // the home feed showed only the avatar/username with nothing else for
+    // these activity types. `title` is always populated even for a real
+    // post ("X posted an update"), so this only falls back to it when
+    // content is genuinely empty rather than always preferring it.
+    if (caption.replaceAll(RegExp(r'<[^>]*>'), '').trim().isEmpty) {
+      final title = json["title"];
+      if (title is String && title.isNotEmpty) {
+        caption = title;
+      }
     }
 
     // The real field on this endpoint is `user_avatar` (confirmed live
@@ -133,6 +293,9 @@ if (image.isEmpty &&
       likes: reactionTotal > 0 ? reactionTotal : favoriteCount,
       comments: json["comment_count"] ?? 0,
       shares: json["share_count"] ?? 0,
+      photos: _parseAttachmentField(json["bp_media_ids"]).map((m) => PostPhoto.fromJson(m)).toList(),
+      videos: _parseAttachmentField(json["bp_videos"]).map((m) => PostVideo.fromJson(m)).toList(),
+      documents: _parseAttachmentField(json["bp_documents"]).map((m) => PostDocument.fromJson(m)).toList(),
       createdAt:
       DateTime.tryParse(json["date"] ?? "") ?? DateTime.now(),
       time: json["date"] ?? "",
@@ -145,13 +308,19 @@ canComment: json["can_comment"] ?? false,
 
 activityType: json["type"] ?? "",
 
+discussionId: (json["type"] == "bbp_topic_create" || json["type"] == "bbp_reply_create")
+    ? json["secondary_item_id"]?.toString()
+    : null,
+
 profileLink: "https://k54global.com/members/${json["user_id"]}",
 
 isPinned: json["is_pinned"] ?? false,
 
 privacy: json["privacy"] ?? "public",
 
-previewData: json["preview_data"]?.toString() ?? "", 
+previewData: json["preview_data"]?.toString() ?? "",
+
+isLiveStreamActivity: isLiveStreamActivity,
 
     );
   }

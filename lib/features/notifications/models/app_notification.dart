@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:k54_mobile/core/theme/app_colors.dart';
 
 /// A BuddyBoss notification, per BuddyPress's open-source BP-REST plugin
 /// (class-bp-rest-notifications-endpoint.php on
@@ -80,15 +81,15 @@ class AppNotification {
   Color get displayColor {
     switch (component) {
       case 'messages':
-        return Colors.blue;
+        return AppColors.info;
       case 'activity':
-        return Colors.red;
+        return AppColors.error;
       case 'friends':
-        return Colors.green;
+        return AppColors.green;
       case 'groups':
-        return Colors.orange;
+        return AppColors.warning;
       default:
-        return Colors.grey;
+        return AppColors.grey;
     }
   }
 }

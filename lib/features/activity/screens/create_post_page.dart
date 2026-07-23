@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:k54_mobile/features/activity/models/post_model.dart';
@@ -6,10 +6,10 @@ import 'package:k54_mobile/core/services/buddyboss_service.dart';
 import 'package:k54_mobile/core/services/auth_service.dart';
 import 'package:k54_mobile/core/theme/app_colors.dart';
 import 'package:k54_mobile/features/ai/screens/ai_page.dart';
-import 'package:k54_mobile/core/widgets/k54_dialog.dart';
 import 'package:k54_mobile/core/widgets/primary_button.dart';
 import 'package:k54_mobile/core/widgets/tap_scale.dart';
 import 'package:k54_mobile/core/widgets/user_avatar.dart';
+import 'package:k54_mobile/features/live_video/screens/live_video_manage_page.dart';
 
 class CreatePostPage extends StatefulWidget {
   /// When set, this screen edits [editingPost] instead of composing a new
@@ -35,6 +35,7 @@ final ImagePicker picker = ImagePicker();
 final BuddyBossService buddyBossService = BuddyBossService();
 
 File? selectedImage;
+File? selectedVideo;
 
 bool isLoading = false;
 
@@ -99,11 +100,14 @@ Widget _mediaBadge({required IconData icon, required VoidCallback onTap}) {
   return TapScale(
     onTap: onTap,
     borderRadius: BorderRadius.circular(16),
+    // A calmer, softer green (not the full-saturation brand green, not
+    // black) - direct tester feedback asking for a "calm shade of green"
+    // specifically for these four icons.
     child: Container(
       width: 32,
       height: 32,
-      decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
-      child: Icon(icon, color: Colors.white, size: 16),
+      decoration: const BoxDecoration(color: AppColors.softGreen, shape: BoxShape.circle),
+      child: Icon(icon, color: AppColors.white, size: 16),
     ),
   );
 }
@@ -119,44 +123,24 @@ Future<void> pickImage() async {
   if (image != null) {
     setState(() {
       selectedImage = File(image.path);
+      selectedVideo = null;
+    });
+  }
+}
+
+Future<void> pickVideo() async {
+  final video = await picker.pickVideo(source: ImageSource.gallery);
+  if (video != null) {
+    setState(() {
+      selectedVideo = File(video.path);
+      selectedImage = null;
     });
   }
 }
 
  Future<void> publishPost() async {
-  if (postController.text.trim().isEmpty && selectedImage == null) {
+  if (postController.text.trim().isEmpty && selectedImage == null && selectedVideo == null) {
     return;
-  }
-
-  // Image upload isn't wired to the API yet (BuddyBoss's featured-image
-  // endpoint exists but its exact request shape hasn't been confirmed
-  // against a live response, so guessing at it here would risk a "fix"
-  // that silently fails). Until then, ask instead of dropping the image
-  // without telling the user — the previous behavior published text-only
-  // with no indication the photo never made it.
-  if (selectedImage != null) {
-    final proceedWithoutImage = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: K54Dialog.shape,
-        title: const Text("Photo not supported yet"),
-        content: const Text(
-          "Attaching a photo isn't available yet. Publishing now will "
-          "post your text only, without the image. Continue?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Publish Without Photo"),
-          ),
-        ],
-      ),
-    );
-    if (proceedWithoutImage != true) return;
   }
 
   setState(() {
@@ -165,30 +149,62 @@ Future<void> pickImage() async {
 
   try {
     final editing = widget.editingPost;
+    final Post post;
     if (editing != null) {
-      final updated = await buddyBossService.updatePost(
+      post = await buddyBossService.updatePost(
         activityId: editing.id,
         content: postController.text.trim(),
         privacy: editing.privacy,
       );
-      if (!mounted) return;
-      Navigator.pop(context, updated);
     } else {
-      final created = await buddyBossService.createPost(
+      post = await buddyBossService.createPost(
         content: postController.text.trim(),
         privacy: "public",
       );
       if (turnOffComments) {
         try {
-          await buddyBossService.toggleCommentsClosed(created.id, true);
+          await buddyBossService.toggleCommentsClosed(post.id, true);
         } catch (_) {
           // The post itself published fine - a failed follow-up toggle
           // isn't worth blocking on or rolling back for.
         }
       }
-      if (!mounted) return;
-      Navigator.pop(context, true);
     }
+
+    // Real two-step attach flow, confirmed live 2026-07-20 (see
+    // BuddyBossService.uploadMedia's doc comment): upload the file, then
+    // attach the resulting upload id to this post's activity id. A
+    // failure here doesn't roll back the post itself - the text already
+    // published successfully, so this only warns rather than discarding
+    // real, already-saved content.
+    final image = selectedImage;
+    final video = selectedVideo;
+    try {
+      if (image != null) {
+        final uploadId = await buddyBossService.uploadMedia(image);
+        await buddyBossService.attachMedia(activityId: post.id, uploadId: uploadId);
+      } else if (video != null) {
+        final uploadId = await buddyBossService.uploadVideo(video);
+        await buddyBossService.attachVideo(activityId: post.id, uploadId: uploadId);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Post published, but attaching the media failed: $e")),
+        );
+      }
+    }
+
+    if (!mounted) return;
+    // Always pops with the real Post - previously the new-post path
+    // popped a bare `true` and made the caller (HomePage) throw the
+    // whole feed into a full re-fetch to find it again. A freshly
+    // created post can take a while to show up in a fresh GET
+    // /buddyboss/v1/activity response (server/CDN-side propagation, not
+    // a client bug) - popping the real object the create call already
+    // returned lets the caller insert it locally, instantly, with no
+    // dependency on that refetch at all.
+    Navigator.pop(context, post);
   } catch (e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -210,7 +226,7 @@ Widget build(BuildContext context) {
 
   return Scaffold(
 
-    backgroundColor: Colors.white,
+    backgroundColor: AppColors.white,
 
     body:  SafeArea(
   child: SingleChildScrollView(
@@ -317,11 +333,15 @@ Widget build(BuildContext context) {
                 const Spacer(),
 
                 // "Go Live" - visible in Figma (node 40:712) next to the
-                // privacy selector, but no live-streaming backend is
-                // confirmed, so this is a coming-soon stub like the other
-                // unwired media actions on this screen.
+                // privacy selector. Opens the same real Channel Controls
+                // interface as Profile's Live Video tab (see
+                // LiveVideoManagePage's doc comment) - direct tester
+                // feedback wanting both entry points to match.
                 TapScale(
-                  onTap: () => _comingSoon("Going live"),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LiveVideoManagePage()),
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   child: Row(
                     children: [
@@ -330,7 +350,7 @@ Widget build(BuildContext context) {
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(width: 6),
-                      Icon(Icons.videocam, color: Colors.red.shade400, size: 20),
+                      Icon(Icons.videocam, color: AppColors.errorMedium, size: 20),
                     ],
                   ),
                 ),
@@ -358,7 +378,7 @@ Widget build(BuildContext context) {
               decoration: BoxDecoration(
 
                 border: Border.all(
-                  color: Colors.grey.shade300,
+                  color: AppColors.greyShade300,
                 ),
 
                 borderRadius: BorderRadius.circular(20),
@@ -376,6 +396,7 @@ Widget build(BuildContext context) {
                   hintText: "Share your thoughts...",
 
                   border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
 
                 ),
 
@@ -392,6 +413,33 @@ Widget build(BuildContext context) {
         height: 180,
         width: double.infinity,
         fit: BoxFit.cover,
+      ),
+    ),
+  ),
+if (selectedVideo != null)
+  Padding(
+    padding: const EdgeInsets.only(top: 15),
+    child: Container(
+      height: 100,
+      width: double.infinity,
+      decoration: BoxDecoration(color: AppColors.black87, borderRadius: BorderRadius.circular(15)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.videocam, color: AppColors.white),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              selectedVideo!.path.split(Platform.pathSeparator).last,
+              style: const TextStyle(color: AppColors.white),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => selectedVideo = null),
+            icon: const Icon(Icons.close, color: AppColors.white),
+          ),
+        ],
       ),
     ),
   ),
@@ -464,7 +512,7 @@ Row(
 
     // Media actions - black circular badges matching Figma exactly
     // (node 40:712), right-aligned next to the AI pill.
-    _mediaBadge(icon: Icons.play_arrow, onTap: () => _comingSoon("Attaching a video")),
+    _mediaBadge(icon: Icons.play_arrow, onTap: pickVideo),
     const SizedBox(width: 8),
     _mediaBadge(icon: Icons.camera_alt_outlined, onTap: pickImage),
     const SizedBox(width: 8),
@@ -524,6 +572,10 @@ Container(
   ),
 ),
 
+// Was directly adjacent to the settings card above with no gap at all -
+// flagged directly in tester feedback ("too close to the post
+// settings").
+const SizedBox(height: 20),
 
 // ======================
 // Bottom Buttons
@@ -542,7 +594,7 @@ Row(
 ),
 
 
-    const SizedBox(width: 20),
+    const SizedBox(width: 28),
 
 
     // Publish Button - greyed/disabled while there's nothing to publish,
